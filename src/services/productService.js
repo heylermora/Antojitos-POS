@@ -6,12 +6,18 @@ export const getProducts = async () => {
     console.log('[getProducts] Fetching products from Firestore...');
     const snapshot = await getDocs(collection(db, 'products'));
 
+    if (snapshot.empty) {
+      console.warn('[getProducts] No se encontraron productos en Firestore.');
+      throw new Error('No se encontraron productos en la base de datos.');
+    }
+
     const categoriesMap = {};
 
     snapshot.forEach(doc => {
-      const product = doc.data();
+      const data = doc.data();
 
-      const { categoryId, categoryName } = product;
+      const categoryId = data.categoryId || 'sin_categoria';
+      const categoryName = data.categoryName || 'Sin categoría';
 
       if (!categoriesMap[categoryId]) {
         categoriesMap[categoryId] = {
@@ -22,17 +28,15 @@ export const getProducts = async () => {
       }
 
       categoriesMap[categoryId].products.push({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        description: product.description,
-        categoryName: categoryName
+        id: doc.id,                    // usamos el id del documento
+        name: data.name,
+        price: Number(data.price) || 0,
+        description: data.description || '',
+        categoryName
       });
     });
 
     const categories = Object.values(categoriesMap);
-
-    console.log("categories", categories);
 
     const alreadyHasOther = categories.some(c => c.id === 'other');
     if (!alreadyHasOther) {
@@ -42,12 +46,12 @@ export const getProducts = async () => {
         products: []
       });
     }
-    
+
     console.log('[getProducts] Categories parsed:', categories);
     return categories;
   } catch (err) {
     console.error('[getProducts] Error:', err);
-    return [];
+    throw err;
   }
 };
 

@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Typography, Divider, Chip, Stack, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Paper, IconButton, CircularProgress, Tooltip, TextField, MenuItem, Link
+  TableHead, TableRow, Paper, IconButton, CircularProgress, Tooltip, Link
 } from '@mui/material';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import EditIcon from '@mui/icons-material/Edit';
@@ -26,25 +26,7 @@ import {
   createEmployee, updateEmployee, deleteEmployee,
   createWorkLog, updateWorkLog
 } from '../services/worklogService';
-
-// ---------- Utils ----------
-const toIsoDateKey = (d0) => { const d = new Date(d0); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-const startOfWeek = (d0) => { const d = new Date(d0), diff = (d.getDay()+6)%7; d.setHours(0,0,0,0); d.setDate(d.getDate()-diff); return d; };
-const endOfWeek   = (d0) => { const s = startOfWeek(d0), e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return e; };
-const isValidTime = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
-const minutesOf   = (v) => { const [h,m]=String(v).split(':').map(Number); return h*60+m; };
-const buildLocalDateTime = (dateStr, timeStr) => { const [y,m,d]=dateStr.split('-').map(Number); const [hh,mm]=timeStr.split(':').map(Number); return new Date(y,m-1,d,hh,mm,0,0); };
-const calcHours = (l) => typeof l.hours==='number'&&!Number.isNaN(l.hours) ? l.hours
-  : Math.max(0, Number(((new Date(l.endAt)-new Date(l.startAt))/36e5).toFixed(2)));
-const fmtHours = (h) => { const H=Math.floor(h), M=Math.round((h-H)*60); return M===0?`${H} h`:H===0?`${M} min`:`${H} h ${M} min`; };
-const rangeLabel = (a,b) => { const o={month:'short',day:'2-digit'}; return `${a.toLocaleDateString('es-CR',o)} – ${b.toLocaleDateString('es-CR',o)}`; };
-
-// Devuelve 'YYYY-MM-DD' en horario LOCAL a partir de ISO o Date, evitando +1/-1 día
-const toLocalDateKey = (isoOrDate) => {
-  const d = new Date(isoOrDate);
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-};
+import * as timekit from '../utils/timekit';
 
 // Convierte employeeId para la API (num si es dígitos, de lo contrario string)
 const toApiEmployeeId = (id) => {
@@ -58,8 +40,8 @@ export default function WorkLogHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [employeeId, setEmployeeId] = useState('all'); // siempre string en UI
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const weekEnd = useMemo(() => endOfWeek(weekStart), [weekStart]);
+  const [weekStart, setWeekStart] = useState(() => timekit.startOfWeek(new Date()));
+  const weekEnd = useMemo(() => timekit.endOfWeek(weekStart), [weekStart]);
 
   // Modales
   const [empModalOpen, setEmpModalOpen] = useState(false);
@@ -69,12 +51,12 @@ export default function WorkLogHistoryPage() {
   const [editingLogId, setEditingLogId] = useState(null);
   const [confirmDel, setConfirmDel] = useState({ open:false, emp:null });
 
-  const daysOfWeek = useMemo(
-    () => Array.from({length:7},(_,i)=>{ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); return d; }),
+  const weekKeys = useMemo(
+    () => timekit.getWeekDateKeys(weekStart),
     [weekStart]
   );
-  const weekKeys = useMemo(()=>daysOfWeek.map(toIsoDateKey),[daysOfWeek]);
-  const todayKey = useMemo(()=>toIsoDateKey(new Date()),[]);
+
+const todayKey = timekit.getTodayKey();
 
   // Empleados
   useEffect(() => { (async () => {
@@ -88,10 +70,9 @@ export default function WorkLogHistoryPage() {
   const fetchWeekLogs = useCallback(async () => {
     try {
       setIsLoading(true);
-      const filters = {
-        from: new Date(weekStart).toISOString(),
-        to:   new Date(weekEnd).toISOString(),
-      };
+      const { from, to } = timekit.toIsoRange(weekStart, weekEnd);
+      const filters = { from, to };
+
       const apiEmpId = toApiEmployeeId(employeeId);
       if (apiEmpId !== undefined) filters.employeeId = apiEmpId;
 
@@ -100,7 +81,7 @@ export default function WorkLogHistoryPage() {
       logs.forEach(l => {
         const when = l.startAt || l.endAt;
         if (!when) return;
-        const k = toLocalDateKey(when);          // clave por día en horario local
+        const k = timekit.toLocalDateKey(when);          // clave por día en horario local
         (map[k] ??= []).push(l);
       });
       setHistoryByDay(map);
@@ -115,13 +96,13 @@ export default function WorkLogHistoryPage() {
     weekKeys.forEach(k => (historyByDay[k] || []).forEach(l => {
       const empKey = String(l.employeeId ?? '—'); // clave normalizada
       (acc[empKey] ??= {});
-      acc[empKey][k] = (acc[empKey][k] || 0) + calcHours(l);
+      acc[empKey][k] = (acc[empKey][k] || 0) + timekit.calcHours(l);
     }));
     return acc;
   }, [historyByDay, weekKeys]);
 
   const totalByDay = useMemo(()=>Object.fromEntries(
-    weekKeys.map(k=>[k,(historyByDay[k]||[]).reduce((a,l)=>a+calcHours(l),0)])
+    weekKeys.map(k=>[k,(historyByDay[k]||[]).reduce((a,l)=>a+timekit.calcHours(l),0)])
   ),[historyByDay, weekKeys]);
 
   const totalWeek = useMemo(()=>Object.values(totalByDay).reduce((a,b)=>a+b,0),[totalByDay]);
@@ -137,7 +118,7 @@ export default function WorkLogHistoryPage() {
     // iteramos todos los logs cargados y construimos índice por (emp|fechaLocal)
     Object.keys(historyByDay).forEach(k => {
       (historyByDay[k] || []).forEach(l => {
-        const dateKey = toLocalDateKey(l.startAt || l.endAt || k);
+        const dateKey = timekit.toLocalDateKey(l.startAt || l.endAt || k);
         const empKey  = String(l.employeeId ?? '—');
         const key     = `${empKey}|${dateKey}`;
         const ts      = new Date(l.endAt || l.startAt || 0).getTime();
@@ -170,15 +151,18 @@ export default function WorkLogHistoryPage() {
   const openNewEntry = (empId, dateKey) => {
     const resolvedEmp    = (employeeId!=='all' ? employeeId : empId) || '';
     const resolvedEmpStr = String(resolvedEmp);
-    const resolvedDate   = String(dateKey || toIsoDateKey(new Date()));
+    const resolvedDate   = String(dateKey || timekit.toIsoDateKey(new Date()));
     const existing       = lastLogByEmpDay[`${resolvedEmpStr}|${resolvedDate}`];
 
-    const toHHMM = (d) => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-
     if (existing) {
-      const s=new Date(existing.startAt), e=new Date(existing.endAt);
-      setLogForm({ employeeId:resolvedEmpStr, date:resolvedDate, start:toHHMM(s), end:toHHMM(e) });
-      setEditingLogId(existing.id || existing._id || null);
+      const s = new Date(existing.startAt);
+      const e = new Date(existing.endAt);
+      setLogForm({
+        employeeId: resolvedEmpStr,
+        date: resolvedDate,
+        start: timekit.toHHMM(s),
+        end:   timekit.toHHMM(e),
+      });
     } else {
       setLogForm({ employeeId:resolvedEmpStr, date:resolvedDate, start:'', end:'' });
       setEditingLogId(null);
@@ -189,11 +173,11 @@ export default function WorkLogHistoryPage() {
   const saveLog = async () => {
     const { employeeId:empId, date, start, end } = logForm;
     if (!empId || !date || !start || !end) return;
-    if (!isValidTime(start) || !isValidTime(end)) { alert('Formato de hora inválido. Usa HH:MM'); return; }
-    if (minutesOf(end) <= minutesOf(start)) { alert('La hora de fin debe ser mayor que la de inicio.'); return; }
+    if (!timekit.isValidTime(start) || !timekit.isValidTime(end)) { alert('Formato de hora inválido. Usa HH:MM'); return; }
+    if (timekit.minutesOf(end) <= timekit.minutesOf(start)) { alert('La hora de fin debe ser mayor que la de inicio.'); return; }
 
-    const startAt = buildLocalDateTime(date,start).toISOString();
-    const endAt   = buildLocalDateTime(date,end).toISOString();
+    const startAt = timekit.buildLocalDateTime(date,start).toISOString();
+    const endAt   = timekit.buildLocalDateTime(date,end).toISOString();
 
     if (editingLogId) {
       await updateWorkLog(editingLogId,{ employeeId: empId, startAt, endAt });
@@ -214,18 +198,6 @@ export default function WorkLogHistoryPage() {
             <WorkHistoryIcon /><Typography variant="h5" fontWeight={700}>Historial de Horas</Typography>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <TextField
-              size="small" select label="Empleado" value={employeeId}
-              onChange={e=>setEmployeeId(String(e.target.value))}
-              sx={{ minWidth:{xs:200, sm:260} }}
-            >
-              <MenuItem value="all">Todos</MenuItem>
-              {employees.map(emp=>(
-                <MenuItem key={emp.id} value={String(emp.id)}>
-                  {emp.name}{emp.phone?` (${emp.phone})`:''}
-                </MenuItem>
-              ))}
-            </TextField>
             <Tooltip title="Nuevo empleado">
               <IconButton color="primary" onClick={openCreateEmp}><AddIcon /></IconButton>
             </Tooltip>
@@ -235,16 +207,16 @@ export default function WorkLogHistoryPage() {
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap">
           <Stack direction="row" spacing={1} alignItems="center">
             <Tooltip title="Semana anterior">
-              <IconButton onClick={()=>setWeekStart(p=>{ const d=new Date(p); d.setDate(p.getDate()-7); return startOfWeek(d); })}><ChevronLeftIcon/></IconButton>
+              <IconButton onClick={()=>setWeekStart(p=>{ const d=new Date(p); d.setDate(p.getDate()-7); return timekit.startOfWeek(d); })}><ChevronLeftIcon/></IconButton>
             </Tooltip>
             <Typography variant="subtitle1" sx={{ minWidth:180, textAlign:'center', fontWeight:600 }}>
-              {rangeLabel(weekStart, weekEnd)}
+              {timekit.rangeLabel(weekStart, weekEnd)}
             </Typography>
             <Tooltip title="Siguiente semana">
-              <IconButton onClick={()=>setWeekStart(p=>{ const d=new Date(p); d.setDate(p.getDate()+7); return startOfWeek(d); })}><ChevronRightIcon/></IconButton>
+              <IconButton onClick={()=>setWeekStart(p=>{ const d=new Date(p); d.setDate(p.getDate()+7); return timekit.startOfWeek(d); })}><ChevronRightIcon/></IconButton>
             </Tooltip>
           </Stack>
-          <Chip label={`Total semana: ${fmtHours(Number(totalWeek.toFixed(2)))}`} color="success" sx={{ fontWeight:600 }} />
+          <Chip label={`Total semana: ${timekit.fmtHours(Number(totalWeek.toFixed(2)))}`} color="success" sx={{ fontWeight:600 }} />
         </Stack>
       </Stack>
 
@@ -262,7 +234,8 @@ export default function WorkLogHistoryPage() {
                 <TableCell/>
                 <TableCell>Empleado</TableCell>
                 {weekKeys.map(k=>{
-                  const d = new Date(`${k}T00:00:00`), isToday=k===todayKey;
+                  const d = timekit.fromDateKey(k);
+                  const isToday = k === todayKey;
 
                   return (
                     <TableCell key={k} align="right" sx={{ p:1, bgcolor:isToday?'action.hover':undefined }}>
@@ -298,8 +271,7 @@ export default function WorkLogHistoryPage() {
                     <TableCell>{emp.name}</TableCell>
                     {weekKeys.map(k=>{
                       const v=((hoursByEmpDay[empKey]||{})[k])||0;
-                      const label=v?fmtHours(Number(v.toFixed(2))):'—';
-                      console.log("TableBody k:", k);
+                      const label=v?timekit.fmtHours(Number(v.toFixed(2))):'—';
                       return (
                         <TableCell key={k} align="right" sx={{ whiteSpace:'nowrap' }}>
                           <Tooltip title={v?'Editar registro':'Agregar horas'}>
@@ -316,16 +288,16 @@ export default function WorkLogHistoryPage() {
                         </TableCell>
                       );
                     })}
-                    <TableCell align="right"><strong>{fmtHours(Number(totalRow.toFixed(2)))}</strong></TableCell>
+                    <TableCell align="right"><strong>{timekit.fmtHours(Number(totalRow.toFixed(2)))}</strong></TableCell>
                   </TableRow>
                 );
               })}
               <TableRow>
                 <TableCell colSpan={2}><strong>Total semana</strong></TableCell>
                 {weekKeys.map(k=>(
-                  <TableCell key={k} align="right"><strong>{totalByDay[k]?fmtHours(Number(totalByDay[k].toFixed(2))):'—'}</strong></TableCell>
+                  <TableCell key={k} align="right"><strong>{totalByDay[k]?timekit.fmtHours(Number(totalByDay[k].toFixed(2))):'—'}</strong></TableCell>
                 ))}
-                <TableCell align="right"><strong>{fmtHours(Number(totalWeek.toFixed(2)))}</strong></TableCell>
+                <TableCell align="right"><strong>{timekit.fmtHours(Number(totalWeek.toFixed(2)))}</strong></TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -365,8 +337,8 @@ export default function WorkLogHistoryPage() {
         onSubmit={saveLog}
         submitDisabled={
           !logForm.employeeId || !logForm.date ||
-          !isValidTime(logForm.start||'') || !isValidTime(logForm.end||'') ||
-          (isValidTime(logForm.start||'') && isValidTime(logForm.end||'') && minutesOf(logForm.end)<=minutesOf(logForm.start))
+          !timekit.isValidTime(logForm.start||'') || !timekit.isValidTime(logForm.end||'') ||
+          (timekit.isValidTime(logForm.start||'') && timekit.isValidTime(logForm.end||'') && timekit.minutesOf(logForm.end)<=timekit.minutesOf(logForm.start))
         }
         maxWidth="sm"
       />

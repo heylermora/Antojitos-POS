@@ -33,29 +33,46 @@ export const getOrders = async (startDate, endDate) => {
 
 export const getPaidOrdersGroupedByDay = async () => {
   try {
+    console.log('[getPaidOrdersGroupedByDay] Starting fetch...');
+
     const ordersRef = collection(db, 'orders');
     const q = query(ordersRef, orderBy('timestamp'));
-    const snapshot = await getDocs(q);
 
-    const paidOrders = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(order => order.status === 'Pagada');
+    const snapshot = await getDocs(q);
+    console.log('[getPaidOrdersGroupedByDay] Documents fetched:', snapshot.size);
+
+    const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log('[getPaidOrdersGroupedByDay] All orders parsed:', allOrders.length);
+
+    const paidOrders = allOrders.filter(order => order.status === 'Pagada');
+    console.log('[getPaidOrdersGroupedByDay] Paid orders filtered:', paidOrders.length);
+
+    // Recientes primero
+    const ordered = paidOrders.reverse();
+    console.log('[getPaidOrdersGroupedByDay] Orders sorted (recent first).');
 
     const grouped = {};
 
-    paidOrders.forEach(order => {
-      const dateKey = new Date(order.timestamp.seconds * 1000 + order.timestamp.nanoseconds / 1000000).toLocaleDateString('es-ES');
-      //const dateKey = dateObject.toDateString();
-      
-      //console.log("Tipo:", typeof dateObject);
-      if (!grouped[dateKey]) grouped[dateKey] = [];
+    ordered.forEach(order => {
+      const ts = order.timestamp;
+      const ms = ts.seconds * 1000 + ts.nanoseconds / 1e6;
+
+      const dateKey = new Date(ms).toLocaleDateString('es-ES');
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+        console.log(`[getPaidOrdersGroupedByDay] Created group for date: ${dateKey}`);
+      }
+
       grouped[dateKey].push(order);
     });
 
+    console.log('[getPaidOrdersGroupedByDay] Final grouped result:', grouped);
+
     return grouped;
 
-  } catch (error) {
-    console.error('[getPaidOrdersGroupedByDay] Error al obtener órdenes:', error);
+  } catch (err) {
+    console.error('[getPaidOrdersGroupedByDay] Error:', err);
     return {};
   }
 };

@@ -15,7 +15,7 @@
  * - Incluye el nombre del cliente en la comanda
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -52,42 +52,68 @@ const OrderCreationPage = () => {
   const [saleItems, setSaleItems] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorOpen, setErrorOpen] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorState, setErrorState] = useState({
+    open: false,
+    title: 'Error',
+    message: '',
+    retryText: '',
+    onRetry: null
+  });
+
+  const showError = useCallback((message, options = {}) => {
+    setErrorState({
+      open: true,
+      title: options.title || 'Error',
+      message: message || 'Ocurrió un error inesperado.',
+      retryText: options.retryText || '',
+      onRetry: options.onRetry || null
+    });
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const loaded = await getProducts();
+      const safeLoaded = Array.isArray(loaded) ? loaded : [];
+
+      setCategories(safeLoaded);
+
+      if (safeLoaded.length > 0) {
+        const first = safeLoaded[0];
+        setActiveCategoryId(first.id);
+        setCurrentProducts(first.products || []);
+      } else {
+        setActiveCategoryId('');
+        setCurrentProducts([]);
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Error al cargar productos/categorías. Intenta nuevamente.', {
+        retryText: 'Reintentar carga',
+        onRetry: loadCategories
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showError]);
 
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        setIsLoading(true);
-        const loaded = await getProducts();
-        setCategories(Array.isArray(loaded) ? loaded : []);
-
-        if (loaded?.length > 0) {
-          const first = loaded[0];
-          setActiveCategoryId(first.id);
-          setCurrentProducts(first.products || []);
-        }
-      } catch (err) {
-        console.error(err);
-        showError('Error al cargar productos/categorías. Intenta nuevamente.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadCategories();
-  }, []);
+  }, [loadCategories]);
 
   useEffect(() => {
     const selectedCategory = categories.find(cat => cat.id === activeCategoryId);
     setCurrentProducts(selectedCategory?.products || []);
   }, [activeCategoryId, categories]);
 
-  const showError = (msg) => {
-    console.log("ABRIR ERROR:", msg);
-    setErrorMsg(msg || 'Ocurrió un error inesperado.');
-    setErrorOpen(true);
+  const handleCloseError = () => {
+    setErrorState(prev => ({
+      ...prev,
+      open: false,
+      onRetry: null,
+      retryText: ''
+    }));
   };
 
   const addCustomProduct = () => {
@@ -152,6 +178,11 @@ const OrderCreationPage = () => {
       return;
     }
 
+    if (isSaving) return;
+    setIsSaving(true);
+
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     const order = {
       customerName: customerName.trim() || '',
       timestamp: new Date(),
@@ -167,7 +198,16 @@ const OrderCreationPage = () => {
       setCustomerName('');
     } catch (err) {
       console.error(err);
-      showError('No se pudo guardar la comanda. Verifica tu conexión e inténtalo de nuevo. ' + err.message);
+      showError(
+        'No se pudo guardar la comanda. Verifica tu conexión e inténtalo de nuevo. ' +
+          (err?.message || ''),
+        {
+          retryText: 'Reintentar guardado',
+          onRetry: handleSaveOrder
+        }
+      );    
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -312,17 +352,19 @@ const OrderCreationPage = () => {
           variant="contained"
           color="primary"
           onClick={handleSaveOrder}
-          disabled={saleItems.length === 0}
+          disabled={saleItems.length === 0 || isSaving}
           startIcon={<Save />}
         >
-          Guardar Comanda
+          {isSaving ? 'Guardando...' : 'Guardar Comanda'}
         </Button>
       </Stack>
-     <ErrorModal
-        open={errorOpen}
-        title="Error"
-        message={errorMsg}
-        onClose={() => setErrorOpen(false)}
+      <ErrorModal
+        open={errorState.open}
+        title={errorState.title}
+        message={errorState.message}
+        retryText={errorState.retryText}
+        onRetry={errorState.onRetry || undefined}
+        onClose={handleCloseError}
       />
     </Box>    
   );

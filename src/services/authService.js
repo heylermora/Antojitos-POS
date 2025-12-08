@@ -17,6 +17,10 @@ import { auth } from '../lib/firebase';
 
 const STORAGE_KEY = 'app.auth.user';
 
+// 🔹 Config de sesión máxima
+const SESSION_EXPIRES_AT_KEY = 'app.auth.expiresAt';
+const MAX_SESSION_MS = 12 * 60 * 60 * 1000; // 12 horas
+
 /* -------------------------- Persistencia sesión -------------------------- */
 // Asegura que la sesión persista en localStorage (sobrevive recargas)
 let _persistenceReady = null;
@@ -36,6 +40,33 @@ const store = {
   clear() { localStorage.removeItem(STORAGE_KEY); },
 };
 
+// 🔹 Helpers de expiración
+const setSessionExpiration = () => {
+  const expiresAt = Date.now() + MAX_SESSION_MS;
+  localStorage.setItem(SESSION_EXPIRES_AT_KEY, expiresAt.toString());
+};
+
+const clearSessionExpiration = () => {
+  localStorage.removeItem(SESSION_EXPIRES_AT_KEY);
+};
+
+const isSessionExpired = () => {
+  const raw = localStorage.getItem(SESSION_EXPIRES_AT_KEY);
+  if (!raw) return false;
+  const expiresAt = Number(raw) || 0;
+  return Date.now() > expiresAt;
+};
+
+const ensureSessionNotExpired = () => {
+  // Si ya venció, limpiamos y hacemos signOut "fire and forget"
+  if (!isSessionExpired()) return true;
+
+  store.clear();
+  clearSessionExpiration();
+  fbSignOut(auth).catch(() => {});
+  return false;
+};
+
 const toUserLite = (fbUser) => {
   if (!fbUser) return null;
   return {
@@ -52,6 +83,10 @@ const toUserLite = (fbUser) => {
 export async function login({ email, password }) {
   await ensurePersistence();
   const cred = await signInWithEmailAndPassword(auth, email, password);
+
+  // 🔹 Arranca ventana de 12 horas
+  setSessionExpiration();
+
   const userLite = toUserLite(cred.user);
   store.save(userLite);
   return { user: userLite };
@@ -64,6 +99,10 @@ export async function register({ email, password, displayName }) {
   if (displayName) {
     await updateProfile(cred.user, { displayName });
   }
+
+  // 🔹 También aplica ventana de 12 horas al registrarse
+  setSessionExpiration();
+
   const userLite = toUserLite(cred.user);
   store.save(userLite);
   return { user: userLite };
@@ -72,21 +111,27 @@ export async function register({ email, password, displayName }) {
 export async function logout() {
   await fbSignOut(auth);
   store.clear();
+  clearSessionExpiration(); // 🔹 limpiar expiración
 }
 
 /** Usuario actual (lite) desde memoria o localStorage */
 export function getCurrentUser() {
+  if (!ensureSessionNotExpired()) return null; // 🔹 corta si ya venció
+
   const u = auth.currentUser ? toUserLite(auth.currentUser) : store.load();
   return u;
 }
 
 /** ¿Hay sesión activa? */
 export function isAuthenticated() {
+  if (!ensureSessionNotExpired()) return false; // 🔹 no autenticado si venció
   return !!(auth.currentUser || store.load());
 }
 
 /** Token Firebase ID (útil para llamar a tu API protegida vía Bearer) */
 export async function getAccessToken(forceRefresh = false) {
+  if (!ensureSessionNotExpired()) return null; // 🔹 no dar token si venció
+
   const u = auth.currentUser;
   if (!u) return null;
   return getIdToken(u, forceRefresh);
@@ -94,6 +139,8 @@ export async function getAccessToken(forceRefresh = false) {
 
 /** Decodifica claims del ID token (roles/claims personalizados si los usas) */
 export async function getAccessTokenInfo(forceRefresh = false) {
+  if (!ensureSessionNotExpired()) return null; // 🔹 igual aquí
+
   const u = auth.currentUser;
   if (!u) return null;
   return getIdTokenResult(u, forceRefresh);
@@ -102,6 +149,15 @@ export async function getAccessTokenInfo(forceRefresh = false) {
 /** Escuchar cambios de sesión y mantener store en sync */
 export function subscribeAuth(listener) {
   return onAuthStateChanged(auth, (fbUser) => {
+    // 🔹 Si la sesión está vencida, limpiamos todo
+    if (isSessionExpired()) {
+      store.clear();
+      clearSessionExpiration();
+      fbSignOut(auth).catch(() => {});
+      listener?.(null);
+      return;
+    }
+
     const lite = toUserLite(fbUser);
     if (lite) store.save(lite); else store.clear();
     listener?.(lite);
@@ -111,6 +167,11 @@ export function subscribeAuth(listener) {
 /** Rehidratar al boot (sin llamadas extras, sólo sincroniza store) */
 export async function hydrateAuthOnBoot() {
   await ensurePersistence();
+
+  if (!ensureSessionNotExpired()) {
+    return { isAuthenticated: false, user: null }; // 🔹 ya vencida al boot
+  }
+
   // Forzamos una lectura para poblar store si ya hay sesión
   const u = auth.currentUser ? toUserLite(auth.currentUser) : store.load();
   if (u) store.save(u);

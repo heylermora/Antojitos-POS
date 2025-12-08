@@ -13,31 +13,32 @@
 
 import { useEffect, useState } from 'react';
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Divider,
-  Chip,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
+  Box, Typography, Card, CardContent, Divider, Chip, Stack,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, IconButton, Dialog, DialogTitle, DialogContent,
+  DialogActions, Button, CircularProgress,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getPaidOrdersGroupedByDay } from '../services/orderService';
+
+const getResumenPorMetodo = (orders = []) =>
+  orders.reduce((acc, order) => {
+    if (Array.isArray(order.paymentMethod)) {
+      order.paymentMethod.forEach(p => {
+        const metodo = p.paymentMethod || 'Otro';
+        const monto = Number(p.amount || 0);
+        acc[metodo] = (acc[metodo] || 0) + monto;
+      });
+    } else {
+      const metodo = order.paymentMethod || 'Otro';
+      acc[metodo] = (acc[metodo] || 0) + order.total;
+    }
+    return acc;
+  }, {});
+
+const formatTime = (dateStr) =>
+  new Date(dateStr).toLocaleString('es-CR', { hour: '2-digit', minute: '2-digit' });
 
 const SalesHistoryPage = () => {
   const [history, setHistory] = useState({});
@@ -46,53 +47,15 @@ const SalesHistoryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       const grouped = await getPaidOrdersGroupedByDay();
       setHistory(grouped);
       setIsLoading(false);
-    };
-    fetchData();
+      console.log('[SalesHistoryPage] history loaded:', grouped);
+    })();
   }, []);
 
-  const handleOpen = (order) => {
-    setSelectedOrder(order);
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-    setSelectedOrder(null);
-  };
-
-  const getResumenPorMetodo = (orders) => {
-    const resumen = {};
-
-    orders.forEach((order) => {
-      if (Array.isArray(order.paymentMethod)) {
-        order.paymentMethod.forEach((p) => {
-          const metodo = p.paymentMethod || "Otro";
-          const monto   = Number(p.amount || 0);
-
-          resumen[metodo] = (resumen[metodo] || 0) + monto;
-        });
-      } else {
-        const metodo = order.paymentMethod || "Otro";
-        resumen[metodo] = (resumen[metodo] || 0) + order.total;
-      }
-    });
-
-    return resumen;
-  };
-
-  const formatTime = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleString('es-CR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const dates = Object.keys(history).sort((a, b) => b - a);
+  const dates = Object.keys(history); // ya vienen ordenadas desde el servicio
 
   if (isLoading) {
     return (
@@ -111,11 +74,10 @@ const SalesHistoryPage = () => {
       {dates.length === 0 ? (
         <Typography>No hay ventas registradas.</Typography>
       ) : (
-        dates.map((date) => {
-          const orders = history[date];
+        dates.map(date => {
+          const orders = history[date] || [];
           const resumen = getResumenPorMetodo(orders);
           const totalDia = orders.reduce((acc, o) => acc + o.total, 0);
-          console.log("Date", history);
 
           return (
             <Card key={date} variant="outlined" sx={{ mb: 4 }}>
@@ -158,15 +120,13 @@ const SalesHistoryPage = () => {
                         <TableRow key={order.id || index}>
                           <TableCell>{formatTime(order.createdAt)}</TableCell>
                           <TableCell>
-                            {(
-                              Array.isArray(order.paymentMethod) && order.paymentMethod.length > 0
-                                ? order.paymentMethod.map(p => p.paymentMethod).join(', ')
-                                : 'Otro'
-                            )}
+                            {Array.isArray(order.paymentMethod) && order.paymentMethod.length
+                              ? order.paymentMethod.map(p => p.paymentMethod).join(', ')
+                              : 'Otro'}
                           </TableCell>
                           <TableCell>{formatCurrency(order.total)}</TableCell>
                           <TableCell align="center">
-                            <IconButton color="primary" onClick={() => handleOpen(order)}>
+                            <IconButton color="primary" onClick={() => { setSelectedOrder(order); setOpen(true); }}>
                               <VisibilityIcon />
                             </IconButton>
                           </TableCell>
@@ -181,8 +141,7 @@ const SalesHistoryPage = () => {
         })
       )}
 
-      {/* Modal con detalle de venta */}
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+      <Dialog open={open} onClose={() => { setOpen(false); setSelectedOrder(null); }} fullWidth maxWidth="sm">
         <DialogTitle>Detalle de Venta</DialogTitle>
         <DialogContent dividers>
           {selectedOrder ? (
@@ -223,7 +182,7 @@ const SalesHistoryPage = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cerrar</Button>
+          <Button onClick={() => { setOpen(false); setSelectedOrder(null); }}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Box>
