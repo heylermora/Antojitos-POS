@@ -31,7 +31,7 @@ import {
   AccordionSummary,
   AccordionDetails
 } from '@mui/material';
-import { ExpandMore, Save, Add } from '@mui/icons-material';
+import { ExpandMore, Save, Add, RestaurantMenu } from '@mui/icons-material';
 
 import CategorySelector from '../components/CategorySelector';
 import ProductGrid from '../components/ProductGrid';
@@ -40,6 +40,8 @@ import { formatCurrency } from '../utils/formatCurrency';
 import { getProducts } from '../services/productService';
 import { saveOrder } from '../services/orderService';
 import ErrorModal from '../modals/ErrorModal';
+import PageTitle from '../components/PageTitle';
+
 
 const OrderCreationPage = () => {
   const [activeCategoryId, setActiveCategoryId] = useState('');
@@ -230,9 +232,11 @@ const OrderCreationPage = () => {
 
   return (
     <Box>
-      <Typography variant="h5" mb={2}>
-        Creación de Comanda
-      </Typography>
+      <PageTitle
+        title="Nueva Comanda"
+        subtitle="Registra un pedido de forma rápida y sencilla"
+        icon={RestaurantMenu}
+      />
 
       <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

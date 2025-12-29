@@ -18,12 +18,13 @@ import {
   Paper,
   Alert,
 } from '@mui/material';
-// Asegúrate de que estos imports sean correctos en tu proyecto
+
 import { getOrders, updateOrderStatus, deleteOrder } from '../services/orderService';
 import OrderColumn from '../components/OrderColumn'; 
 import FormModal from '../modals/FormModal'; 
 import { formatCurrency } from '../utils/formatCurrency';
-
+import PageTitle from '../components/PageTitle';
+import { ListAlt } from '@mui/icons-material';
 
 const paymentOptions = ['Efectivo', 'Sinpe', 'Tarjeta'];
 const STATUSES = ['Por Hacer', 'Realizada', 'Pagada'];
@@ -327,9 +328,11 @@ const KitchenOrdersPage = () => {
         backgroundColor: '#f7f5f2' // Fondo ligeramente cálido
       }}
     >
-      <Typography variant="h4" gutterBottom fontWeight={700} textAlign="center" color="#904120">
-        Comandas en Servicio 📝
-      </Typography>
+      <PageTitle
+        title="Comandas"
+        subtitle="Pedidos en tiempo real para preparación y cobro"
+        icon={ListAlt}
+      />
 
       {error && (
         <Box mb={2}>

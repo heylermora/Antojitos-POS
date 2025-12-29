@@ -22,6 +22,8 @@ import {
 } from 'recharts';
 import { getPaidOrdersGroupedByDay } from '../services/orderService';
 import { formatCurrency } from '../utils/formatCurrency';
+import { BarChart as Chart } from '@mui/icons-material';
+import PageTitle from '../components/PageTitle';
 
 const COLORS = ['#42a5f5', '#ffb74d', '#66bb6a', '#ba68c8', '#ef5350'];
 
@@ -92,9 +94,11 @@ const SalesDashboardPage = () => {
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight={600} gutterBottom>
-        Dashboard de Ventas
-      </Typography>
+      <PageTitle
+        title="Dashboard de Ventas"
+        subtitle="Resumen general de ventas y métricas"
+        icon={Chart}
+      />
 
       {/* KPIs */}
       <Box display="flex" gap={3} mb={4} flexWrap="wrap">

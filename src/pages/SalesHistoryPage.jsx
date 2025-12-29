@@ -18,9 +18,10 @@ import {
   Paper, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, Button, CircularProgress,
 } from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import {Visibility, ReceiptLong} from '@mui/icons-material';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getPaidOrdersGroupedByDay } from '../services/orderService';
+import PageTitle from '../components/PageTitle';
 
 const getResumenPorMetodo = (orders = []) =>
   orders.reduce((acc, order) => {
@@ -66,10 +67,12 @@ const SalesHistoryPage = () => {
   }
 
   return (
-    <Box p={2}>
-      <Typography variant="h5" fontWeight={600} gutterBottom>
-        Historial de Ventas
-      </Typography>
+    <Box p={2}>      
+      <PageTitle
+        title="Historial de Ventas"
+        subtitle="Registro diario de ventas"
+        icon={ReceiptLong}
+      />
 
       {dates.length === 0 ? (
         <Typography>No hay ventas registradas.</Typography>
@@ -127,7 +130,7 @@ const SalesHistoryPage = () => {
                           <TableCell>{formatCurrency(order.total)}</TableCell>
                           <TableCell align="center">
                             <IconButton color="primary" onClick={() => { setSelectedOrder(order); setOpen(true); }}>
-                              <VisibilityIcon />
+                              <Visibility />
                             </IconButton>
                           </TableCell>
                         </TableRow>

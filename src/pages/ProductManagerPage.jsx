@@ -28,9 +28,10 @@ import {
   Paper,
   CircularProgress
 } from '@mui/material';
-import { ExpandMore, Edit, Delete, Add } from '@mui/icons-material';
+import { ExpandMore, Edit, Delete, Add, Inventory } from '@mui/icons-material';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService';
 import FormModal from '../modals/FormModal';
+import PageTitle from '../components/PageTitle';
 
 const ProductManagerPage = () => {
   const [categories, setCategories] = useState([]);
@@ -107,9 +108,11 @@ const ProductManagerPage = () => {
 
   return (
     <Box sx={{ p: 3, maxWidth: '900px', mx: 'auto' }}>
-      <Typography variant="h4" gutterBottom fontWeight={600} textAlign="center">
-        Gestión de Productos
-      </Typography>
+      <PageTitle
+        title="Gestión de Productos"
+        subtitle="Administra el menú, precios y disponibilidad de productos"
+        icon={Inventory}
+      />
 
       {categories.map(category => (
         <Accordion key={category.id} sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
