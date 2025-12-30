@@ -241,36 +241,106 @@ export default function WorkLogHistoryPage() {
         icon={WorkHistory}
       />
 
-      <Stack spacing={1.5} sx={{ p: 1.5, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1, border: t => `1px solid ${t.palette.divider}` }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap">
-          <Stack direction="row" spacing={1} alignItems="center">
+      <Stack
+        spacing={1.5}
+        sx={{
+          p: { xs: 1, sm: 1.5 },
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 1,
+          border: t => `1px solid ${t.palette.divider}`,
+        }}
+      >
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          justifyContent="space-between"
+          gap={{ xs: 1, sm: 1 }}
+        >
+          {/* Left: week nav */}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{
+              width: { xs: '100%', sm: 'auto' },
+              flexWrap: 'wrap',
+            }}
+          >
             <Tooltip title="Semana anterior">
-              <IconButton onClick={() => setWeekStart(p => { const d = new Date(p); d.setDate(p.getDate() - 7); return timekit.startOfWeek(d); })}><ChevronLeftIcon /></IconButton>
+              <IconButton
+                size="small"
+                onClick={() =>
+                  setWeekStart(p => {
+                    const d = new Date(p)
+                    d.setDate(p.getDate() - 7)
+                    return timekit.startOfWeek(d)
+                  })
+                }
+              >
+                <ChevronLeftIcon />
+              </IconButton>
             </Tooltip>
-            <Typography variant="subtitle1" sx={{ minWidth: 180, textAlign: 'center', fontWeight: 600 }}>
+
+            <Typography
+              variant="subtitle1"
+              sx={{ fontWeight: 600 }}
+            >
               {timekit.rangeLabel(weekStart, weekEnd)}
             </Typography>
+
             <Tooltip title="Siguiente semana">
-              <IconButton onClick={() => setWeekStart(p => { const d = new Date(p); d.setDate(p.getDate() + 7); return timekit.startOfWeek(d); })}><ChevronRightIcon /></IconButton>
+              <IconButton
+                size="small"
+                onClick={() =>
+                  setWeekStart(p => {
+                    const d = new Date(p)
+                    d.setDate(p.getDate() + 7)
+                    return timekit.startOfWeek(d)
+                  })
+                }
+              >
+                <ChevronRightIcon />
+              </IconButton>
             </Tooltip>
           </Stack>
 
-          <Stack direction="row" spacing={1}>
+          {/* Right: actions */}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent={{ xs: 'space-between', sm: 'flex-end' }}
+            sx={{
+              width: { xs: '100%', sm: 'auto' },
+              flexWrap: 'wrap',
+            }}
+          >
             <Chip
               label={`Total semana: ${timekit.fmtHours(Number((totalWeekMinutes / 60).toFixed(2)))}`}
               color="success"
-              sx={{ fontWeight: 600 }}
+              sx={{
+                fontWeight: 600,
+                flex: { xs: '1 1 auto', sm: '0 0 auto' },
+                justifyContent: 'center',
+              }}
             />
 
-            <Divider orientation="vertical" flexItem />
+            <Divider
+              orientation="vertical"
+              flexItem
+              sx={{ display: { xs: 'none', sm: 'block' } }}
+            />
 
             <Tooltip title="Nuevo empleado">
-              <IconButton color="primary" onClick={openCreateEmp}><AddIcon /></IconButton>
+              <IconButton color="primary" onClick={openCreateEmp}>
+                <AddIcon />
+              </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
       </Stack>
-
+      
       <br />
 
       {isLoading ? (
@@ -278,96 +348,173 @@ export default function WorkLogHistoryPage() {
       ) : visibleEmployees.length === 0 ? (
         <Typography>No hay empleados registrados.</Typography>
       ) : (
-        <TableContainer component={Paper} elevation={1}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell />
-                <TableCell>Empleado</TableCell>
-                {weekKeys.map(k => {
-                  const d = timekit.fromDateKey(k);
-                  const isToday = k === todayKey;
-
-                  return (
-                    <TableCell key={k} align="right" sx={{ p: 1, bgcolor: isToday ? 'action.hover' : undefined }}>
-                      <Tooltip title={d.toLocaleDateString('es-CR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}>
-                        <Stack alignItems="flex-end" spacing={0}>
-                          <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: .5, opacity: .7 }}>
-                            {d.toLocaleDateString('es-CR', { weekday: 'short' })}
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                            {d.toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit' })}
-                          </Typography>
-                        </Stack>
-                      </Tooltip>
-                    </TableCell>
-                  );
-                })}
-                <TableCell align="right"><strong>Total</strong></TableCell>
-              </TableRow>
-            </TableHead>
-
-            <TableBody>
-              {visibleEmployees.map(emp => {
-                const empKey = String(emp.id);
-                const totalRowMinutes = weekKeys.reduce((a, k) => a + (minutesByEmpDay[empKey]?.[k] ?? 0), 0);
-
-                return (
-                  <TableRow key={emp.id} hover>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                        <Tooltip title="Editar empleado"><IconButton size="small" onClick={() => openEditEmp(emp)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                        <Tooltip title="Eliminar empleado"><IconButton size="small" color="error" onClick={() => askRemoveEmp(emp)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
-                      </Stack>
-                    </TableCell>
-
-                    <TableCell>{emp.name}</TableCell>
-
+        <>
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell />
+                    <TableCell>Empleado</TableCell>
                     {weekKeys.map(k => {
-                      const minutes = minutesByEmpDay[empKey]?.[k] ?? 0;
-                      const hours = minutes / 60;
-                      const label = minutes > 0 ? timekit.fmtHours(Number(hours.toFixed(2))) : '—';
+                      const d = timekit.fromDateKey(k);
+                      const isToday = k === todayKey;
 
                       return (
-                        <TableCell key={k} align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          <Tooltip title={minutes ? 'Editar registro' : 'Agregar horas'}>
-                            <Link
-                              component="button"
-                              underline="hover"
-                              onClick={() => openNewEntry(emp.id, k)}
-                              sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: minutes ? 600 : 400 }}
-                              aria-label={`${minutes ? 'Editar' : 'Agregar'} horas de ${emp.name} para ${new Date(k).toLocaleDateString('es-CR')}`}
-                              data-emp={emp.id}
-                              data-date={k}
-                            >
-                              {label}
-                            </Link>
+                        <TableCell key={k} align="right" sx={{ p: 1, bgcolor: isToday ? 'action.hover' : undefined }}>
+                          <Tooltip title={d.toLocaleDateString('es-CR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}>
+                            <Stack alignItems="flex-end" spacing={0}>
+                              <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: .5, opacity: .7 }}>
+                                {d.toLocaleDateString('es-CR', { weekday: 'short' })}
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                                {d.toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit' })}
+                              </Typography>
+                            </Stack>
                           </Tooltip>
                         </TableCell>
                       );
                     })}
-
-                    <TableCell align="right"><strong>{timekit.fmtHours(Number((totalRowMinutes / 60).toFixed(2)))}</strong></TableCell>
+                    <TableCell align="right"><strong>Total</strong></TableCell>
                   </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {visibleEmployees.map(emp => {
+                    const empKey = String(emp.id);
+                    const totalRowMinutes = weekKeys.reduce((a, k) => a + (minutesByEmpDay[empKey]?.[k] ?? 0), 0);
+
+                    return (
+                      <TableRow key={emp.id} hover>
+                        <TableCell align="center">
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                            <Tooltip title="Editar empleado"><IconButton size="small" onClick={() => openEditEmp(emp)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                            <Tooltip title="Eliminar empleado"><IconButton size="small" color="error" onClick={() => askRemoveEmp(emp)}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+                          </Stack>
+                        </TableCell>
+
+                        <TableCell>{emp.name}</TableCell>
+
+                        {weekKeys.map(k => {
+                          const minutes = minutesByEmpDay[empKey]?.[k] ?? 0;
+                          const hours = minutes / 60;
+                          const label = minutes > 0 ? timekit.fmtHours(Number(hours.toFixed(2))) : '—';
+
+                          return (
+                            <TableCell key={k} align="right" sx={{ whiteSpace: 'nowrap' }}>
+                              <Tooltip title={minutes ? 'Editar registro' : 'Agregar horas'}>
+                                <Link
+                                  component="button"
+                                  underline="hover"
+                                  onClick={() => openNewEntry(emp.id, k)}
+                                  sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: minutes ? 600 : 400 }}
+                                  aria-label={`${minutes ? 'Editar' : 'Agregar'} horas de ${emp.name} para ${new Date(k).toLocaleDateString('es-CR')}`}
+                                  data-emp={emp.id}
+                                  data-date={k}
+                                >
+                                  {label}
+                                </Link>
+                              </Tooltip>
+                            </TableCell>
+                          );
+                        })}
+
+                        <TableCell align="right"><strong>{timekit.fmtHours(Number((totalRowMinutes / 60).toFixed(2)))}</strong></TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  <TableRow>
+                    <TableCell colSpan={2}><strong>Total semana</strong></TableCell>
+                    {weekKeys.map(k => {
+                      const mins = totalMinutesByDay[k] ?? 0;
+                      const hrs = mins / 60;
+                      return (
+                        <TableCell key={k} align="right">
+                          <strong>{mins ? timekit.fmtHours(Number(hrs.toFixed(2))) : '—'}</strong>
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell align="right"><strong>{timekit.fmtHours(Number((totalWeekMinutes / 60).toFixed(2)))}</strong></TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+          <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+            <Stack spacing={2}>
+              {visibleEmployees.map(emp => {
+                const empKey = String(emp.id);
+                const totalRowMinutes = weekKeys.reduce(
+                  (a, k) => a + (minutesByEmpDay[empKey]?.[k] ?? 0),
+                  0
+                );
+
+                return (
+                  <Paper key={emp.id} variant="outlined" sx={{ p: 1.5 }}>
+                    {/* Header */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography fontWeight={700}>{emp.name}</Typography>
+                      <Stack direction="row" spacing={0.5}>
+                        <IconButton size="small" onClick={() => openEditEmp(emp)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => askRemoveEmp(emp)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </Stack>
+
+                    {/* Days */}
+                    <Stack spacing={0.75} mt={1}>
+                      {weekKeys.map(k => {
+                        const d = timekit.fromDateKey(k);
+                        const minutes = minutesByEmpDay[empKey]?.[k] ?? 0;
+                        const hours = minutes / 60;
+                        const label = minutes ? timekit.fmtHours(Number(hours.toFixed(2))) : '—';
+
+                        return (
+                          <Stack
+                            key={k}
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                          >
+                            <Typography variant="body2" color="text.secondary">
+                              {d.toLocaleDateString('es-CR', {
+                                weekday: 'short',
+                                day: '2-digit',
+                                month: 'short',
+                              })}
+                            </Typography>
+
+                            <Link
+                              component="button"
+                              underline="hover"
+                              onClick={() => openNewEntry(emp.id, k)}
+                              sx={{ fontWeight: minutes ? 600 : 400 }}
+                            >
+                              {label}
+                            </Link>
+                          </Stack>
+                        );
+                      })}
+                    </Stack>
+
+                    {/* Total */}
+                    <Divider sx={{ my: 1 }} />
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography fontWeight={700}>Total semana</Typography>
+                      <Typography fontWeight={800}>
+                        {timekit.fmtHours(Number((totalRowMinutes / 60).toFixed(2)))}
+                      </Typography>
+                    </Stack>
+                  </Paper>
                 );
               })}
-
-              <TableRow>
-                <TableCell colSpan={2}><strong>Total semana</strong></TableCell>
-                {weekKeys.map(k => {
-                  const mins = totalMinutesByDay[k] ?? 0;
-                  const hrs = mins / 60;
-                  return (
-                    <TableCell key={k} align="right">
-                      <strong>{mins ? timekit.fmtHours(Number(hrs.toFixed(2))) : '—'}</strong>
-                    </TableCell>
-                  );
-                })}
-                <TableCell align="right"><strong>{timekit.fmtHours(Number((totalWeekMinutes / 60).toFixed(2)))}</strong></TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </Stack>
+          </Box>
+        </>
       )}
 
       {/* Modal Empleado */}

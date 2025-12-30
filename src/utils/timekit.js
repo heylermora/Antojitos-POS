@@ -87,7 +87,7 @@ export const fmtHours = (h) => {
 // Etiqueta "01 ene – 07 ene"
 export const rangeLabel = (a, b) => {
   const o = { month: 'short', day: '2-digit' };
-  return `${a.toLocaleDateString('es-CR', o)} – ${b.toLocaleDateString('es-CR', o)}`;
+  return `${a.toLocaleDateString('es-CR', o).replace('-', ' ')} – ${b.toLocaleDateString('es-CR', o).replace('-', ' ' )}`;
 };
 
 /** Devuelve los 7 días de la semana a partir de weekStart */
