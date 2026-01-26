@@ -42,6 +42,7 @@ import KitchenOrdersPage from './pages/KitchenOrdersPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import WorkLogHistoryPage from './pages/WorkLogHistoryPage';
 import LoginPage from './pages/LoginPage';
+import OfflineBanner from './components/OfflineBanner';
 
 import * as authService from './services/authService';
 
@@ -55,10 +56,24 @@ const App = () => {
   const [viewIndex, setViewIndex] = useState(getInitialViewIndex);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
     localStorage.setItem('app.viewIndex', viewIndex.toString());
   }, [viewIndex]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = authService.subscribeAuth((user) => {
@@ -96,7 +111,12 @@ const App = () => {
   };
 
   if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return (
+      <Box sx={{ backgroundColor: '#fffaf5', minHeight: '100vh' }}>
+        <OfflineBanner isOnline={isOnline} />
+        <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
+      </Box>
+    );
   }
 
   return (
@@ -122,6 +142,8 @@ const App = () => {
           </IconButton>
         </Toolbar>
       </AppBar>
+
+      <OfflineBanner isOnline={isOnline} />
 
       <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box
