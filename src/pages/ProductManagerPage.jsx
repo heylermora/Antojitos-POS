@@ -30,8 +30,8 @@ import {
 } from '@mui/material';
 import { ExpandMore, Edit, Delete, Add, Inventory } from '@mui/icons-material';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService';
-import FormModal from '../modals/FormModal';
-import PageTitle from '../components/PageTitle';
+import FormModal from '../components/Modals/FormModal';
+import PageTitle from '../components/Titles/PageTitle';
 
 const ProductManagerPage = () => {
   const [categories, setCategories] = useState([]);

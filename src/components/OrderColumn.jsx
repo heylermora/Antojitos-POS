@@ -4,7 +4,7 @@ import {
   Box,
 } from '@mui/material';
 import KitchenOrder from './KitchenOrder';
-import ConfirmModal from '../modals/ConfirmModal';
+import ConfirmModal from './Modals/ConfirmModal';
 
 const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymentModal, onDelete}) => {
   const [confirmData, setConfirmData] = useState(null);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
-import ProductButton from './ProductButton';
+import ProductButton from './Buttons/ProductButton';
 
 const ProductGrid = ({ products, selected, onSelect }) => {
   const theme = useTheme();

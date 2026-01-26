@@ -19,15 +19,15 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import FormModal from '../modals/FormModal';
-import ConfirmModal from '../modals/ConfirmModal';
+import FormModal from '../components/Modals/FormModal';
+import ConfirmModal from '../components/Modals/ConfirmModal';
 import {
   getWorkLogs, getEmployees,
   createEmployee, updateEmployee, deleteEmployee,
   createWorkLog, updateWorkLog
 } from '../services/worklogService';
 import * as timekit from '../utils/timekit';
-import PageTitle from '../components/PageTitle';
+import PageTitle from '../components/Titles/PageTitle';
 
 // Convierte employeeId para la API (num si es dígitos, de lo contrario string)
 const toApiEmployeeId = (id) => {

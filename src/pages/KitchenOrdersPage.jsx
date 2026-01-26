@@ -21,9 +21,9 @@ import {
 
 import { getOrders, updateOrderStatus, deleteOrder } from '../services/orderService';
 import OrderColumn from '../components/OrderColumn'; 
-import FormModal from '../modals/FormModal'; 
+import FormModal from '../components/Modals/FormModal'; 
 import { formatCurrency } from '../utils/formatCurrency';
-import PageTitle from '../components/PageTitle';
+import PageTitle from '../components/Titles/PageTitle';
 import { ListAlt } from '@mui/icons-material';
 
 const paymentOptions = ['Efectivo', 'Sinpe', 'Tarjeta'];

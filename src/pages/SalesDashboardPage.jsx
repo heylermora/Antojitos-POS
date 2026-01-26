@@ -23,7 +23,7 @@ import {
 import { getPaidOrdersGroupedByDay } from '../services/orderService';
 import { formatCurrency } from '../utils/formatCurrency';
 import { BarChart as Chart } from '@mui/icons-material';
-import PageTitle from '../components/PageTitle';
+import PageTitle from '../components/Titles/PageTitle';
 
 const COLORS = ['#42a5f5', '#ffb74d', '#66bb6a', '#ba68c8', '#ef5350'];
 

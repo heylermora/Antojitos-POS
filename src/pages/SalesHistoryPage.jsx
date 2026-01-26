@@ -21,7 +21,7 @@ import {
 import {Visibility, ReceiptLong} from '@mui/icons-material';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getPaidOrdersGroupedByDay } from '../services/orderService';
-import PageTitle from '../components/PageTitle';
+import PageTitle from '../components/Titles/PageTitle';
 
 const getResumenPorMetodo = (orders = []) =>
   orders.reduce((acc, order) => {
