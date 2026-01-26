@@ -42,7 +42,7 @@ import KitchenOrdersPage from './pages/KitchenOrdersPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import WorkLogHistoryPage from './pages/WorkLogHistoryPage';
 import LoginPage from './pages/LoginPage';
-import OfflineBanner from './components/OfflineBanner';
+import OfflineBanner from './components/Banners/OfflineBanner';
 
 import * as authService from './services/authService';
 

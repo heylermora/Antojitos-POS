@@ -35,12 +35,12 @@ import { ExpandMore, Save, Add, RestaurantMenu } from '@mui/icons-material';
 
 import CategorySelector from '../components/CategorySelector';
 import ProductGrid from '../components/ProductGrid';
-import SaleTable from '../components/SaleTable';
+import SaleTable from '../components/Tables/SaleTable';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getProducts } from '../services/productService';
 import { saveOrder } from '../services/orderService';
-import ErrorModal from '../modals/ErrorModal';
-import PageTitle from '../components/PageTitle';
+import ErrorModal from '../components/Modals/ErrorModal';
+import PageTitle from '../components/Titles/PageTitle';
 
 
 const OrderCreationPage = () => {
