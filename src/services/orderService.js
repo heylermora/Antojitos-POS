@@ -77,6 +77,29 @@ export const getPaidOrdersGroupedByDay = async () => {
   }
 };
 
+export const getPaidOrders = async () => {
+  try {
+    console.log('[getPaidOrders] Starting fetch...');
+
+    const ordersRef = collection(db, 'orders');
+    const q = query(ordersRef, orderBy('timestamp'));
+
+    const snapshot = await getDocs(q);
+    console.log('[getPaidOrders] Documents fetched:', snapshot.size);
+
+    const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log('[getPaidOrders] All orders parsed:', allOrders.length);
+
+    const paidOrders = allOrders.filter(order => order.status === 'Pagada');
+    console.log('[getPaidOrders] Paid orders filtered:', paidOrders.length);
+
+    return paidOrders.reverse();
+  } catch (err) {
+    console.error('[getPaidOrders] Error:', err);
+    return [];
+  }
+};
+
 export const saveOrder = async (orderData) => {
   try {
     console.log("orderData", orderData)
