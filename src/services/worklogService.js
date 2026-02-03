@@ -107,9 +107,45 @@ export const getWorkLogsGroupedByDay = async (filtersOrEmployeeId = {}) => {
   }
 };
 
+const findExistingWorkLogForDay = async (employeeId, dateKey) => {
+  const dayStart = `${dateKey}T00:00:00`;
+  const dayEnd = `${dateKey}T23:59:59`;
+
+  const q = query(
+    collection(db, COLL),
+    where('employeeId', '==', employeeId),
+    where('startAt', '>=', dayStart),
+    where('startAt', '<=', dayEnd),
+    orderBy('startAt', 'desc'),
+    limit(1)
+  );
+
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+
+  const docSnap = snap.docs[0];
+  const data = docSnap.data();
+  return data.id ? data : { ...data, id: docSnap.id };
+};
+
 /** Crea un worklog (persistimos solo lo esencial). */
 export const createWorkLog = async (worklog) => {
   try {
+    const dateKey = toIsoDateKey(worklog.startAt || worklog.endAt);
+    const existing = await findExistingWorkLogForDay(worklog.employeeId, dateKey);
+
+    if (existing) {
+      const docRef = doc(db, COLL, existing.id);
+      const patch = {
+        employeeId: worklog.employeeId,
+        startAt: worklog.startAt,
+        endAt: worklog.endAt,
+      };
+
+      await updateDoc(docRef, patch);
+      return normalize({ ...existing, ...patch });
+    }
+
     const id = worklog.id || `worklog_${cryptoRandom()}`;
     const docRef = doc(db, COLL, id);
 
