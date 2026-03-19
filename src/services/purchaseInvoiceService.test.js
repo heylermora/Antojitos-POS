@@ -10,8 +10,10 @@ const mockServerTimestamp = jest.fn(() => 'server-timestamp');
 const mockApplyIngredientCostUpdate = jest.fn();
 const mockClearIngredientCostUpdate = jest.fn();
 
+const mockAddDoc = jest.fn();
+
 jest.mock('firebase/firestore', () => ({
-  addDoc: jest.fn(),
+  addDoc: (...args) => mockAddDoc(...args),
   collection: (...args) => mockCollection(...args),
   deleteDoc: (...args) => mockDeleteDoc(...args),
   doc: (...args) => mockDoc(...args),
@@ -31,7 +33,7 @@ jest.mock('./ingredientService', () => ({
   clearIngredientCostUpdate: (...args) => mockClearIngredientCostUpdate(...args),
 }));
 
-import { deletePurchaseInvoice } from './purchaseInvoiceService';
+import { createPurchaseInvoice, deletePurchaseInvoice } from './purchaseInvoiceService';
 
 const makeDoc = (id, data) => ({
   id,
@@ -115,5 +117,53 @@ describe('deletePurchaseInvoice', () => {
     expect(mockGetDocs).not.toHaveBeenCalled();
     expect(mockApplyIngredientCostUpdate).not.toHaveBeenCalled();
     expect(mockClearIngredientCostUpdate).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('createPurchaseInvoice', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('stores only the selected supplier name on the invoice', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'invoice-created' });
+
+    const result = await createPurchaseInvoice({
+      supplierName: 'Distribuidora Central',
+      invoiceNumber: 'FC-101',
+      invoiceDate: '2026-03-15',
+      subtotal: 100,
+      tax: 13,
+      total: 113,
+      notes: 'Entrega semanal',
+      lines: [
+        {
+          ingredientId: 'ingredient-1',
+          ingredientName: 'Queso',
+          quantityPurchased: 2,
+          purchaseUnit: 'kg',
+          baseQuantity: 2000,
+          lineCost: 100,
+          unitCost: 0.05,
+        },
+      ],
+    });
+
+    expect(result).toBe('invoice-created');
+    expect(mockAddDoc).toHaveBeenCalledTimes(1);
+    expect(mockAddDoc.mock.calls[0][1]).toMatchObject({
+      supplierName: 'Distribuidora Central',
+      invoiceNumber: 'FC-101',
+    });
+    expect(mockAddDoc.mock.calls[0][1].supplierContactName).toBeUndefined();
+    expect(mockAddDoc.mock.calls[0][1].supplierPhone).toBeUndefined();
+    expect(mockAddDoc.mock.calls[0][1].supplierEmail).toBeUndefined();
+    expect(mockApplyIngredientCostUpdate).toHaveBeenCalledWith({
+      ingredientId: 'ingredient-1',
+      supplierName: 'Distribuidora Central',
+      unitCost: 0.05,
+      purchasedAt: '2026-03-15',
+    });
   });
 });
