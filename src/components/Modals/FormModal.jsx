@@ -142,7 +142,7 @@ const FormModal = ({
                           label="Método"
                           onChange={(e) => handleMethod(i, e.target.value)}
                         >
-                          {(itemSchema[0]?.options || []).map((opt: any) => (
+                          {(itemSchema[0]?.options || []).map((opt) => (
                             <MenuItem key={opt.value || opt} value={opt.value || opt}>
                               {opt.label || opt}
                             </MenuItem>

@@ -9,11 +9,14 @@
  * - Modal para agregar/editar productos
  * - Diálogo para agregar nuevas categorías
  * - CRUD con servicios externos (productService)
+ * - Visualización de costo, utilidad y margen por producto
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Box,
+  Chip,
   Typography,
   IconButton,
   Table,
@@ -26,15 +29,22 @@ import {
   AccordionDetails,
   Fab,
   Paper,
-  CircularProgress
+  CircularProgress,
+  Stack,
 } from '@mui/material';
 import { ExpandMore, Edit, Delete, Add, Inventory } from '@mui/icons-material';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService';
+import { getIngredients } from '../services/ingredientService';
+import { getRecipes } from '../services/recipeService';
+import { buildCostContext, enrichCategoriesWithCosting } from '../utils/costing';
+import { formatCurrency } from '../utils/formatCurrency';
 import FormModal from '../components/Modals/FormModal';
 import PageTitle from '../components/Titles/PageTitle';
 
 const ProductManagerPage = () => {
   const [categories, setCategories] = useState([]);
+  const [ingredients, setIngredients] = useState([]);
+  const [recipes, setRecipes] = useState([]);
   const [newProduct, setNewProduct] = useState({ name: '', price: '', categoryName: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState({ categoryId: null, product: null });
@@ -43,14 +53,28 @@ const ProductManagerPage = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadData = async () => {
+    setIsLoading(true);
+    const [fetchedProducts, fetchedIngredients, fetchedRecipes] = await Promise.all([
+      getProducts(),
+      getIngredients().catch(() => []),
+      getRecipes().catch(() => []),
+    ]);
+
+    setCategories(fetchedProducts);
+    setIngredients(fetchedIngredients);
+    setRecipes(fetchedRecipes);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const loadProducts = async () => {
-      const fetched = await getProducts();
-      setCategories(fetched);
-      setIsLoading(false);
-    };
-    loadProducts();
+    loadData();
   }, []);
+
+  const enrichedCategories = useMemo(() => {
+    const context = buildCostContext({ ingredients, recipes, categories });
+    return enrichCategoriesWithCosting(categories, context);
+  }, [categories, ingredients, recipes]);
 
   const handleAddProduct = (category) => {
     setNewProduct({ name: '', price: '', categoryName: category.name });
@@ -66,20 +90,27 @@ const ProductManagerPage = () => {
 
   const handleDeleteProduct = async (productId) => {
     await deleteProduct(productId);
-    const updated = await getProducts();
-    setCategories(updated);
+    await loadData();
   };
 
   const handleSaveProduct = async () => {
     if (editing.product) {
-      await updateProduct(newProduct.id, newProduct);
+      await updateProduct(newProduct.id, {
+        ...newProduct,
+        price: Number(newProduct.price) || 0,
+      });
     } else {
       const id = Date.now().toString();
-      const productWithId = { ...newProduct, id, categoryId: editing.categoryId };
+      const productWithId = {
+        ...newProduct,
+        id,
+        price: Number(newProduct.price) || 0,
+        categoryId: editing.categoryId,
+      };
       await createProduct(productWithId);
     }
-    const updated = await getProducts();
-    setCategories(updated);
+
+    await loadData();
     setModalOpen(false);
   };
 
@@ -93,7 +124,7 @@ const ProductManagerPage = () => {
       products: [],
     };
 
-    setCategories(prev => [...prev, newCat]);
+    setCategories((prev) => [...prev, newCat]);
     setNewCategoryName('');
     setCategoryModalOpen(false);
   };
@@ -107,14 +138,18 @@ const ProductManagerPage = () => {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: '900px', mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: '1100px', mx: 'auto' }}>
       <PageTitle
         title="Gestión de Productos"
-        subtitle="Administra el menú, precios y disponibilidad de productos"
+        subtitle="Administra el menú, precios y disponibilidad de productos con su costo y utilidad actual"
         icon={Inventory}
       />
 
-      {categories.map(category => (
+      <Alert severity="info" sx={{ mb: 2 }}>
+        El costo y margen se calculan con la receta vigente y el último costo unitario de insumos cargado por factura.
+      </Alert>
+
+      {enrichedCategories.map((category) => (
         <Accordion key={category.id} sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -139,14 +174,37 @@ const ProductManagerPage = () => {
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                     <TableCell>Nombre</TableCell>
                     <TableCell>Precio</TableCell>
+                    <TableCell>Costo</TableCell>
+                    <TableCell>Utilidad</TableCell>
+                    <TableCell>Margen</TableCell>
+                    <TableCell>Estado receta</TableCell>
                     <TableCell align="right">Acciones</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {category.products.map((prod) => (
                     <TableRow key={prod.id} hover>
-                      <TableCell>{prod.name}</TableCell>
-                      <TableCell>₡{prod.price}</TableCell>
+                      <TableCell>
+                        <Stack spacing={0.5}>
+                          <Typography>{prod.name}</Typography>
+                          {prod.missingItems?.length > 0 && (
+                            <Typography variant="caption" color="warning.main">
+                              {prod.missingItems.join(' · ')}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>{formatCurrency(prod.price)}</TableCell>
+                      <TableCell>{formatCurrency(prod.costCurrent)}</TableCell>
+                      <TableCell>{formatCurrency(prod.profitCurrent)}</TableCell>
+                      <TableCell>{prod.marginCurrent}%</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={prod.recipeStatus}
+                          color={prod.recipeStatus === 'Costeado' ? 'success' : prod.recipeStatus === 'Receta incompleta' ? 'warning' : 'default'}
+                        />
+                      </TableCell>
                       <TableCell align="right">
                         <IconButton color="primary" onClick={() => handleEditProduct(prod, category.id)}><Edit /></IconButton>
                         <IconButton color="error" onClick={() => handleDeleteProduct(prod.id)}><Delete /></IconButton>
@@ -155,7 +213,7 @@ const ProductManagerPage = () => {
                   ))}
                   {category.products.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} align="center">No hay productos en esta categoría</TableCell>
+                      <TableCell colSpan={7} align="center">No hay productos en esta categoría</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -175,13 +233,13 @@ const ProductManagerPage = () => {
         submitLabel="Guardar"
         fields={[
           { type: 'text', key: 'name', label: 'Nombre' },
-          { type: 'text', key: 'price', label: 'Precio', inputProps: { type: 'number' } },
+          { type: 'text', key: 'price', label: 'Precio', inputProps: { type: 'number', min: 0, step: '0.01' } },
           {
             type: 'select',
             key: 'categoryName',
             label: 'Categoría',
-            options: categories.map(c => ({ value: c.name, label: c.name }))
-          }
+            options: categories.map((c) => ({ value: c.name, label: c.name })),
+          },
         ]}
       />
 
@@ -202,7 +260,7 @@ const ProductManagerPage = () => {
         onSubmit={handleAddCategory}
         submitLabel="Agregar"
         fields={[
-          { type: 'text', key: 'name', label: 'Nombre de la categoría' }
+          { type: 'text', key: 'name', label: 'Nombre de la categoría' },
         ]}
         maxWidth="xs"
       />

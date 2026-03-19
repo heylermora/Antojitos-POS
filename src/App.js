@@ -1,13 +1,5 @@
 /**
  * 🧭 App – Navegación principal del sistema POS
- *
- * Controla la autenticación y muestra vistas según el menú seleccionado.
- * Incluye Drawer lateral con navegación a:
- * - Nueva Comanda
- * - Gestión de Productos
- * - Historial de Ventas
- * - Comandas en Cocina
- * - Dashboard de Ventas 📊
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -32,7 +24,10 @@ import {
   BarChart,
   WorkHistory,
   Menu as MenuIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Science,
+  MenuBook,
+  ShoppingCart,
 } from '@mui/icons-material';
 
 import OrderCreationPage from './pages/OrderCreationPage';
@@ -42,12 +37,14 @@ import KitchenOrdersPage from './pages/KitchenOrdersPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import WorkLogHistoryPage from './pages/WorkLogHistoryPage';
 import LoginPage from './pages/LoginPage';
+import IngredientsPage from './pages/IngredientsPage';
+import RecipesPage from './pages/RecipesPage';
+import PurchaseInvoicesPage from './pages/PurchaseInvoicesPage';
 import OfflineBanner from './components/Banners/OfflineBanner';
 
 import * as authService from './services/authService';
 
 const App = () => {
-
   const getInitialViewIndex = () => {
     const storedIndex = localStorage.getItem('app.viewIndex');
     return storedIndex !== null ? parseInt(storedIndex, 10) : 0;
@@ -77,15 +74,14 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = authService.subscribeAuth((user) => {
-        setIsAuthenticated(!!user);
+      setIsAuthenticated(!!user);
     });
 
-    return () => unsubscribe(); 
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = useCallback(async () => {
     await authService.logout();
-    // El subscribeAuth lo debería manejar, pero forzamos el estado por si acaso
     setIsAuthenticated(false);
   }, []);
 
@@ -94,8 +90,11 @@ const App = () => {
     { label: 'Comandas', icon: <ListAlt />, index: 1 },
     { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2 },
     { label: 'Gestión de Productos', icon: <Inventory2 />, index: 3 },
-    { label: 'Dashboard de Ventas', icon: <BarChart />, index: 4 },
-    { label: 'Registro de horas', icon: <WorkHistory />, index: 5 }
+    { label: 'Dashboard', icon: <BarChart />, index: 4 },
+    { label: 'Registro de horas', icon: <WorkHistory />, index: 5 },
+    { label: 'Insumos', icon: <Science />, index: 6 },
+    { label: 'Recetas', icon: <MenuBook />, index: 7 },
+    { label: 'Facturas de compra', icon: <ShoppingCart />, index: 8 },
   ];
 
   const renderCurrentView = () => {
@@ -106,6 +105,9 @@ const App = () => {
       case 3: return <ProductManagerPage />;
       case 4: return <SalesDashboardPage />;
       case 5: return <WorkLogHistoryPage />;
+      case 6: return <IngredientsPage />;
+      case 7: return <RecipesPage />;
+      case 8: return <PurchaseInvoicesPage />;
       default: return <Typography>Vista no encontrada.</Typography>;
     }
   };
@@ -124,13 +126,7 @@ const App = () => {
       <AppBar position="static" sx={{ backgroundColor: '#d4972b' }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton
-              edge="start"
-              color="inherit"
-              aria-label="menu"
-              onClick={() => setDrawerOpen(true)}
-              sx={{ mr: 2 }}
-            >
+            <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
               <MenuIcon />
             </IconButton>
             <Typography variant="h6" component="div" sx={{ fontWeight: 500 }}>
@@ -147,7 +143,7 @@ const App = () => {
 
       <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box
-          sx={{ width: 250, backgroundColor: '#fffaf5', height: '100%' }}
+          sx={{ width: 280, backgroundColor: '#fffaf5', height: '100%' }}
           role="presentation"
           onClick={() => setDrawerOpen(false)}
         >
