@@ -61,6 +61,7 @@ export default function WorkLogHistoryPage() {
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logForm, setLogForm] = useState({ employeeId: '', date: '', start: '', end: '' });
   const [editingLogId, setEditingLogId] = useState(null);
+  const [isSavingLog, setIsSavingLog] = useState(false);
   const [confirmDel, setConfirmDel] = useState({ open: false, emp: null });
 
   const weekKeys = useMemo(() => timekit.getWeekDateKeys(weekStart), [weekStart]);
@@ -202,6 +203,7 @@ export default function WorkLogHistoryPage() {
   const saveLog = async () => {
     const { employeeId: empId, date, start, end } = logForm;
 
+    if (isSavingLog) return;
     if (!empId || !date || !start || !end) return;
 
     if (!timekit.isValidTime(start) || !timekit.isValidTime(end)) {
@@ -221,15 +223,20 @@ export default function WorkLogHistoryPage() {
     const startAt = toLocalIsoNoZ(startDt);
     const endAt = toLocalIsoNoZ(endDt);
 
-    if (editingLogId) {
-      await updateWorkLog(editingLogId, { employeeId: empId, startAt, endAt });
-    } else {
-      await createWorkLog({ employeeId: empId, startAt, endAt });
-    }
+    try {
+      setIsSavingLog(true);
+      if (editingLogId) {
+        await updateWorkLog(editingLogId, { employeeId: empId, startAt, endAt });
+      } else {
+        await createWorkLog({ employeeId: empId, startAt, endAt });
+      }
 
-    setLogModalOpen(false);
-    setEditingLogId(null);
-    await fetchWeekLogs();
+      setLogModalOpen(false);
+      setEditingLogId(null);
+      await fetchWeekLogs();
+    } finally {
+      setIsSavingLog(false);
+    }
   };
 
   // ---------- Render ----------
@@ -539,6 +546,11 @@ export default function WorkLogHistoryPage() {
         title={editingLogId ? 'Editar horas' : 'Registrar horas'}
         fields={[
           {
+            type: 'label',
+            label: 'Si ya existe un registro para ese día, se actualizará automáticamente.',
+            color: 'text.secondary',
+          },
+          {
             type: 'select', key: 'employeeId', label: 'Empleado',
             options: [{ label: '—', value: '' }, ...employees.map(e => ({ label: `${e.name}${e.phone ? ` (${e.phone})` : ''}`, value: String(e.id) }))]
           },
@@ -550,7 +562,9 @@ export default function WorkLogHistoryPage() {
         setFormData={setLogForm}
         onClose={() => { setLogModalOpen(false); setEditingLogId(null); }}
         onSubmit={saveLog}
+        submitLabel={isSavingLog ? 'Guardando...' : 'Guardar'}
         submitDisabled={
+          isSavingLog ||
           !logForm.employeeId || !logForm.date ||
           !timekit.isValidTime(logForm.start || '') || !timekit.isValidTime(logForm.end || '') ||
           (timekit.isValidTime(logForm.start || '') && timekit.isValidTime(logForm.end || '') && timekit.minutesOf(logForm.end) <= timekit.minutesOf(logForm.start))
