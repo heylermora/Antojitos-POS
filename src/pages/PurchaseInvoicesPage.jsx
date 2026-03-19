@@ -20,6 +20,7 @@ import { Add, Delete, ReceiptLong } from '@mui/icons-material';
 import PageTitle from '../components/Titles/PageTitle';
 import { createPurchaseInvoice, deletePurchaseInvoice, getPurchaseInvoices } from '../services/purchaseInvoiceService';
 import { getIngredients } from '../services/ingredientService';
+import { getSuppliers } from '../services/supplierService';
 import { formatCurrency } from '../utils/formatCurrency';
 import { toBaseQuantity, UNIT_OPTIONS } from '../utils/costing';
 
@@ -43,6 +44,7 @@ const emptyForm = {
 
 const PurchaseInvoicesPage = () => {
   const [ingredients, setIngredients] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -50,8 +52,13 @@ const PurchaseInvoicesPage = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [ingredientData, invoiceData] = await Promise.all([getIngredients(), getPurchaseInvoices()]);
+    const [ingredientData, supplierData, invoiceData] = await Promise.all([
+      getIngredients(),
+      getSuppliers(),
+      getPurchaseInvoices(),
+    ]);
     setIngredients(ingredientData);
+    setSuppliers(supplierData.filter((supplier) => supplier.active !== false));
     setInvoices(invoiceData);
     setLoading(false);
   };
@@ -120,7 +127,7 @@ const PurchaseInvoicesPage = () => {
     <Box>
       <PageTitle
         title="Facturas de compra"
-        subtitle="Registra compras de insumos y actualiza automáticamente su costo unitario"
+        subtitle="Registra compras de insumos seleccionando únicamente el nombre del proveedor"
         icon={ReceiptLong}
       />
 
@@ -129,7 +136,18 @@ const PurchaseInvoicesPage = () => {
           <Typography variant="h6" gutterBottom>Registrar factura</Typography>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField label="Proveedor" value={form.supplierName} onChange={(e) => setForm((prev) => ({ ...prev, supplierName: e.target.value }))} fullWidth />
+              <TextField
+                select
+                label="Proveedor"
+                value={form.supplierName}
+                onChange={(e) => setForm((prev) => ({ ...prev, supplierName: e.target.value }))}
+                fullWidth
+                helperText={suppliers.length === 0 ? 'Primero registra proveedores en la página de Proveedores.' : 'La factura solo guarda el nombre del proveedor seleccionado.'}
+              >
+                {suppliers.map((supplier) => (
+                  <MenuItem key={supplier.id} value={supplier.name}>{supplier.name}</MenuItem>
+                ))}
+              </TextField>
               <TextField label="Factura" value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} fullWidth />
               <TextField label="Fecha" type="date" value={form.invoiceDate} onChange={(e) => setForm((prev) => ({ ...prev, invoiceDate: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
             </Stack>
@@ -202,7 +220,16 @@ const PurchaseInvoicesPage = () => {
               Subtotal: <strong>{formatCurrency(subtotal)}</strong> · Impuesto: <strong>{formatCurrency(tax)}</strong> · Total: <strong>{formatCurrency(total)}</strong>
             </Alert>
 
-            <Button variant="contained" onClick={handleSave} disabled={saving || computedLines.some((line) => !line.ingredientId || !line.baseQuantity)}>
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              disabled={
+                saving ||
+                suppliers.length === 0 ||
+                computedLines.some((line) => !line.ingredientId || !line.baseQuantity) ||
+                !form.supplierName.trim()
+              }
+            >
               Guardar factura
             </Button>
           </Stack>
@@ -224,8 +251,8 @@ const PurchaseInvoicesPage = () => {
               {invoices.map((invoice) => (
                 <TableRow key={invoice.id}>
                   <TableCell>{invoice.invoiceDate}</TableCell>
-                  <TableCell>{invoice.supplierName}</TableCell>
-                  <TableCell>{invoice.invoiceNumber}</TableCell>
+                  <TableCell>{invoice.supplierName || '—'}</TableCell>
+                  <TableCell>{invoice.invoiceNumber || '—'}</TableCell>
                   <TableCell>{invoice.lines.length}</TableCell>
                   <TableCell>{formatCurrency(invoice.total)}</TableCell>
                   <TableCell align="right">

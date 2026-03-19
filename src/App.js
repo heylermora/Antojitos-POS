@@ -28,6 +28,7 @@ import {
   Science,
   MenuBook,
   ShoppingCart,
+  LocalShipping,
 } from '@mui/icons-material';
 
 import OrderCreationPage from './pages/OrderCreationPage';
@@ -40,6 +41,7 @@ import LoginPage from './pages/LoginPage';
 import IngredientsPage from './pages/IngredientsPage';
 import RecipesPage from './pages/RecipesPage';
 import PurchaseInvoicesPage from './pages/PurchaseInvoicesPage';
+import SuppliersPage from './pages/SuppliersPage';
 import OfflineBanner from './components/Banners/OfflineBanner';
 
 import * as authService from './services/authService';
@@ -94,7 +96,8 @@ const App = () => {
     { label: 'Registro de horas', icon: <WorkHistory />, index: 5 },
     { label: 'Insumos', icon: <Science />, index: 6 },
     { label: 'Recetas', icon: <MenuBook />, index: 7 },
-    { label: 'Facturas de compra', icon: <ShoppingCart />, index: 8 },
+    { label: 'Proveedores', icon: <LocalShipping />, index: 8 },
+    { label: 'Facturas de compra', icon: <ShoppingCart />, index: 9 },
   ];
 
   const renderCurrentView = () => {
@@ -107,7 +110,8 @@ const App = () => {
       case 5: return <WorkLogHistoryPage />;
       case 6: return <IngredientsPage />;
       case 7: return <RecipesPage />;
-      case 8: return <PurchaseInvoicesPage />;
+      case 8: return <SuppliersPage />;
+      case 9: return <PurchaseInvoicesPage />;
       default: return <Typography>Vista no encontrada.</Typography>;
     }
   };
