@@ -2,16 +2,36 @@ const round = (value, digits = 2) => Number((Number(value) || 0).toFixed(digits)
 
 export const UNIT_OPTIONS = ['g', 'kg', 'ml', 'l', 'unit', 'portion'];
 
+const UNIT_CONVERSIONS = {
+  g: { dimension: 'mass', factor: 1 },
+  kg: { dimension: 'mass', factor: 1000 },
+  ml: { dimension: 'volume', factor: 1 },
+  l: { dimension: 'volume', factor: 1000 },
+  unit: { dimension: 'count', factor: 1 },
+  portion: { dimension: 'portion', factor: 1 },
+};
+
 export const toBaseQuantity = (quantity, unit) => {
   const qty = Number(quantity) || 0;
-  switch (unit) {
-    case 'kg':
-      return qty * 1000;
-    case 'l':
-      return qty * 1000;
-    default:
-      return qty;
+  const conversion = UNIT_CONVERSIONS[unit];
+  return conversion ? qty * conversion.factor : qty;
+};
+
+export const convertQuantity = (quantity, fromUnit, toUnit) => {
+  const qty = Number(quantity) || 0;
+
+  if (!fromUnit || !toUnit || fromUnit === toUnit) {
+    return qty;
   }
+
+  const source = UNIT_CONVERSIONS[fromUnit];
+  const target = UNIT_CONVERSIONS[toUnit];
+
+  if (!source || !target || source.dimension !== target.dimension) {
+    return null;
+  }
+
+  return toBaseQuantity(qty, fromUnit) / target.factor;
 };
 
 export const buildCostContext = ({ ingredients = [], recipes = [], categories = [] }) => {
@@ -67,7 +87,18 @@ export const calculateRecipeCost = (recipeId, context, stack = new Set()) => {
         return;
       }
 
-      const lineCost = (Number(line.quantity) || 0) * (Number(ingredient.currentUnitCost) || 0);
+      const normalizedQuantity = convertQuantity(
+        line.quantity,
+        line.unit || ingredient.baseUnit,
+        ingredient.baseUnit
+      );
+
+      if (normalizedQuantity === null) {
+        missingItems.push(`Unidad incompatible para ${ingredient.name}: ${line.unit || 'sin unidad'} → ${ingredient.baseUnit}`);
+        return;
+      }
+
+      const lineCost = normalizedQuantity * (Number(ingredient.currentUnitCost) || 0);
       totalCost += lineCost;
       breakdown.push({
         name: ingredient.name,
@@ -80,7 +111,19 @@ export const calculateRecipeCost = (recipeId, context, stack = new Set()) => {
     }
 
     const nested = calculateRecipeCost(line.itemId, context, new Set(stack));
-    const lineCost = (Number(line.quantity) || 0) * (Number(nested.unitCost) || 0);
+    const normalizedQuantity = convertQuantity(
+      line.quantity,
+      line.unit || nested.yieldUnit || 'portion',
+      nested.yieldUnit || 'portion'
+    );
+
+    if (normalizedQuantity === null) {
+      missingItems.push(`Unidad incompatible para ${line.itemName || context.recipeMap.get(line.itemId)?.name || 'Subreceta'}: ${line.unit || 'sin unidad'} → ${nested.yieldUnit || 'portion'}`);
+      missingItems.push(...nested.missingItems);
+      return;
+    }
+
+    const lineCost = normalizedQuantity * (Number(nested.unitCost) || 0);
     totalCost += lineCost;
     breakdown.push({
       name: line.itemName || context.recipeMap.get(line.itemId)?.name || 'Subreceta',

@@ -1,6 +1,6 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { applyIngredientCostUpdate } from './ingredientService';
+import { applyIngredientCostUpdate, clearIngredientCostUpdate } from './ingredientService';
 
 const PURCHASE_INVOICES_COLLECTION = 'purchaseInvoices';
 
@@ -24,6 +24,51 @@ const normalizeInvoice = (docSnap) => {
 export const getPurchaseInvoices = async () => {
   const snapshot = await getDocs(query(collection(db, PURCHASE_INVOICES_COLLECTION), orderBy('invoiceDate', 'desc')));
   return snapshot.docs.map(normalizeInvoice);
+};
+
+const toMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const compareInvoices = (left, right) => {
+  const dateDiff = toMillis(right.invoiceDate) - toMillis(left.invoiceDate);
+  if (dateDiff !== 0) return dateDiff;
+  return toMillis(right.createdAt) - toMillis(left.createdAt);
+};
+
+const recomputeIngredientCosts = async (ingredientIds) => {
+  if (!ingredientIds.length) return;
+
+  const invoices = await getPurchaseInvoices();
+
+  await Promise.all(
+    ingredientIds.map(async (ingredientId) => {
+      const latestMatch = invoices
+        .flatMap((invoice) =>
+          (invoice.lines || [])
+            .filter((line) => line.ingredientId === ingredientId)
+            .map((line) => ({ invoice, line }))
+        )
+        .sort((left, right) => compareInvoices(left.invoice, right.invoice))[0];
+
+      if (!latestMatch) {
+        await clearIngredientCostUpdate(ingredientId);
+        return;
+      }
+
+      await applyIngredientCostUpdate({
+        ingredientId,
+        supplierName: latestMatch.invoice.supplierName,
+        unitCost: latestMatch.line.unitCost,
+        purchasedAt: latestMatch.invoice.invoiceDate,
+      });
+    })
+  );
 };
 
 export const createPurchaseInvoice = async (invoice) => {
@@ -67,5 +112,16 @@ export const createPurchaseInvoice = async (invoice) => {
 };
 
 export const deletePurchaseInvoice = async (id) => {
-  await deleteDoc(doc(db, PURCHASE_INVOICES_COLLECTION, id));
+  const invoiceRef = doc(db, PURCHASE_INVOICES_COLLECTION, id);
+  const snapshot = await getDoc(invoiceRef);
+
+  if (!snapshot.exists()) {
+    return;
+  }
+
+  const invoice = normalizeInvoice(snapshot);
+  const affectedIngredientIds = [...new Set((invoice.lines || []).map((line) => line.ingredientId).filter(Boolean))];
+
+  await deleteDoc(invoiceRef);
+  await recomputeIngredientCosts(affectedIngredientIds);
 };

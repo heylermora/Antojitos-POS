@@ -73,3 +73,14 @@ export const applyIngredientCostUpdate = async ({ ingredientId, supplierName, un
     updatedAt: serverTimestamp(),
   });
 };
+
+export const clearIngredientCostUpdate = async (ingredientId) => {
+  if (!ingredientId) return;
+
+  await updateDoc(doc(db, INGREDIENTS_COLLECTION, ingredientId), {
+    currentUnitCost: 0,
+    supplierName: '',
+    lastPurchaseAt: null,
+    updatedAt: serverTimestamp(),
+  });
+};
