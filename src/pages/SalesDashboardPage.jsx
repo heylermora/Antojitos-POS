@@ -24,12 +24,13 @@ import {
 } from 'recharts';
 import { BarChart as Chart } from '@mui/icons-material';
 import PageTitle from '../components/Titles/PageTitle';
-import { getPaidOrders } from '../services/orderService';
+import { getOrderEventDate, getPaidOrders } from '../services/orderService';
 import { getProducts } from '../services/productService';
 import { getIngredients } from '../services/ingredientService';
 import { getRecipes } from '../services/recipeService';
 import { buildCostContext, computeProfitabilityFromOrders } from '../utils/costing';
 import { formatCurrency } from '../utils/formatCurrency';
+import { computeCashClosure } from '../utils/salesReporting';
 
 const COLORS = ['#42a5f5', '#ffb74d', '#66bb6a', '#ba68c8', '#ef5350'];
 
@@ -64,13 +65,7 @@ const SalesDashboardPage = () => {
   }, []);
 
   const getOrderTimestamp = useCallback((order) => {
-    if (order?.timestamp?.seconds) {
-      return new Date(order.timestamp.seconds * 1000 + order.timestamp.nanoseconds / 1e6);
-    }
-    if (order?.createdAt) {
-      return new Date(order.createdAt);
-    }
-    return null;
+    return getOrderEventDate(order);
   }, []);
 
   const applyDateRange = useCallback((data, filters) => {
@@ -155,6 +150,7 @@ const SalesDashboardPage = () => {
     const context = buildCostContext({ ingredients, recipes, categories });
     return computeProfitabilityFromOrders(globalFilteredOrders, context);
   }, [ingredients, recipes, categories, globalFilteredOrders]);
+  const cashClosure = useMemo(() => computeCashClosure(globalFilteredOrders), [globalFilteredOrders]);
 
   const kpis = [
     { label: 'Ventas', value: formatCurrency(summary.total), color: COLORS[0] },
@@ -221,6 +217,38 @@ const SalesDashboardPage = () => {
       <Alert severity="info" sx={{ mb: 3 }}>
         La utilidad es estimada con la receta vigente y el costo unitario actual de insumos. Si un producto no tiene receta, su costo se toma como 0.
       </Alert>
+
+      <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
+        <Typography variant="subtitle1" fontWeight={600} mb={2}>Cierre de caja del rango actual</Typography>
+        <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
+          <Chip label={`Órdenes: ${cashClosure.count}`} color="primary" variant="outlined" />
+          <Chip label={`Ventas: ${formatCurrency(cashClosure.totalSales)}`} color="success" variant="outlined" />
+          <Chip label={`Recibido: ${formatCurrency(cashClosure.totalTendered)}`} variant="outlined" />
+          <Chip label={`Vuelto: ${formatCurrency(cashClosure.totalChange)}`} variant="outlined" />
+          <Chip label={`Neto cobrado: ${formatCurrency(cashClosure.netCollected)}`} color="secondary" />
+        </Box>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Método</TableCell>
+              <TableCell align="right">Monto</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {cashClosure.methods.map((method) => (
+              <TableRow key={method.name}>
+                <TableCell>{method.name}</TableCell>
+                <TableCell align="right">{formatCurrency(method.value)}</TableCell>
+              </TableRow>
+            ))}
+            {cashClosure.methods.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={2} align="center">No hay pagos en el rango seleccionado.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Paper>
 
       <Box display="flex" gap={3} mb={4} flexWrap="wrap">
         <Box flex={1} minWidth="300px" sx={{ p: 3, borderRadius: 2, backgroundColor: theme.palette.background.paper, height: 420, display: 'flex', flexDirection: 'column' }}>

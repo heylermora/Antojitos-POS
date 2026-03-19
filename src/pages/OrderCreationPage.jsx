@@ -24,7 +24,9 @@ import {
   Typography,
   Stack,
   CircularProgress,
+  Alert,
   TextField,
+  MenuItem,
   Paper,
   InputAdornment,
   Accordion,
@@ -46,6 +48,9 @@ import PageTitle from '../components/Titles/PageTitle';
 const OrderCreationPage = () => {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [serviceType, setServiceType] = useState('Salón');
+  const [orderNotes, setOrderNotes] = useState('');
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customNotes, setCustomNotes] = useState('');
@@ -55,6 +60,7 @@ const OrderCreationPage = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedOrderNumber, setLastSavedOrderNumber] = useState('');
   const [errorState, setErrorState] = useState({
     open: false,
     title: 'Error',
@@ -187,6 +193,9 @@ const OrderCreationPage = () => {
 
     const order = {
       customerName: customerName.trim() || '',
+      customerPhone: customerPhone.trim() || '',
+      serviceType,
+      orderNotes: orderNotes.trim() || '',
       timestamp: new Date(),
       status: 'Por Hacer',
       items: saleItems,
@@ -194,10 +203,14 @@ const OrderCreationPage = () => {
     };
 
     try {
-      await saveOrder(order);
+      const savedOrder = await saveOrder(order);
       setSaleItems([]);
       setSelectedProduct(null);
       setCustomerName('');
+      setCustomerPhone('');
+      setServiceType('Salón');
+      setOrderNotes('');
+      setLastSavedOrderNumber(savedOrder?.orderNumber || '');
     } catch (err) {
       console.error(err);
       showError(
@@ -238,15 +251,54 @@ const OrderCreationPage = () => {
         icon={RestaurantMenu}
       />
 
+      {lastSavedOrderNumber && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setLastSavedOrderNumber('')}>
+          Comanda guardada correctamente: <strong>{lastSavedOrderNumber}</strong>
+        </Alert>
+      )}
+
       <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField
-            label="Nombre del cliente (opcional)"
-            placeholder="Ej: María Quesada"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            fullWidth
-          />
+        <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Nombre del cliente (opcional)"
+              placeholder="Ej: María Quesada"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Teléfono (opcional)"
+              placeholder="Ej: 8888-9999"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              fullWidth
+            />
+          </Stack>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              select
+              label="Tipo de servicio"
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value)}
+              fullWidth
+            >
+              {['Salón', 'Para llevar', 'Express'].map((option) => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              label="Notas generales"
+              placeholder="Ej: entregar rápido, cliente frecuente..."
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              fullWidth
+              multiline
+              minRows={1}
+            />
+          </Stack>
         </Stack>
       </Paper>
 

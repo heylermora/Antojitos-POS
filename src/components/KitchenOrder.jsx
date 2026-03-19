@@ -18,11 +18,24 @@ import { formatCurrency } from '../utils/formatCurrency';
 
 const statusOptions = ['Por Hacer', 'Realizada', 'Pagada'];
 
-const KitchenOrder = ({ date, items, currentStatus, customerName, total, onStatusChange, onEdit, onDelete, onOpenPayment }) => {
-  const formattedDate = new Date(date.seconds * 1000 + date.nanoseconds / 1000000);
+const parseDisplayDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value?.seconds === 'number') {
+    return new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1000000);
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const KitchenOrder = ({ date, items, currentStatus, customerName, customerPhone, serviceType, orderNotes, total, orderNumber, onStatusChange, onEdit, onDelete }) => {
+  const formattedDate = parseDisplayDate(date);
   
   // Para el Tooltip del cliente
   const displayCustomerName = customerName?.trim() || '—';
+  const displayPhone = customerPhone?.trim() || '';
 
   const STATUS_BORDER_COLORS = {
     'Por Hacer': '#E57373', // Rojo suave (Red 300)
@@ -42,9 +55,17 @@ const KitchenOrder = ({ date, items, currentStatus, customerName, total, onStatu
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="subtitle1" fontWeight="bold">
-          👤 Cliente: {displayCustomerName}
-        </Typography>
+        <Box>
+          <Typography variant="subtitle2" color="text.secondary">
+            Ticket: {orderNumber || '—'}
+          </Typography>
+          <Typography variant="subtitle1" fontWeight="bold">
+            👤 Cliente: {displayCustomerName}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Servicio: {serviceType || 'Salón'}{displayPhone ? ` · Tel: ${displayPhone}` : ''}
+          </Typography>
+        </Box>
         <Box>
           <Tooltip title="Editar Comanda">
             <IconButton aria-label="Editar" size="small" onClick={onEdit}>
@@ -63,21 +84,31 @@ const KitchenOrder = ({ date, items, currentStatus, customerName, total, onStatu
 
       <Box sx={{ mt: 0.5 }}>
         <Typography variant="body2" >
-          Fecha y Hora: 
-          {
-              ' · ' +
-              formattedDate.toLocaleDateString('es-CR', { 
-                  day: '2-digit', month: '2-digit', year: 'numeric' 
-              }) + 
-              ' · ' + 
-              formattedDate.toLocaleTimeString('es-CR', { 
-                  hour: '2-digit', minute: '2-digit', hour12: true 
-              })
-          }
+          Fecha y Hora:
+          {formattedDate
+            ? ` · ${formattedDate.toLocaleDateString('es-CR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })} · ${formattedDate.toLocaleTimeString('es-CR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })}`
+            : ' —'}
         </Typography>
       </Box>
 
       <Divider sx={{ my: 1.5 }} />
+
+      {(orderNotes || '').trim() && (
+        <>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+            Nota general: {orderNotes.trim()}
+          </Typography>
+          <Divider sx={{ my: 1.5 }} />
+        </>
+      )}
 
       {/* Lista de productos mejorada */}
       <Box sx={{ maxHeight: 150, overflowY: 'auto' }}>

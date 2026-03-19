@@ -17,9 +17,10 @@ import {
   CircularProgress,
   Paper,
   Alert,
+  Stack,
 } from '@mui/material';
 
-import { getOrders, updateOrderStatus, deleteOrder } from '../services/orderService';
+import { getOrders, updateOrderStatus, deleteOrder, getOrderDisplayNumber } from '../services/orderService';
 import OrderColumn from '../components/OrderColumn'; 
 import FormModal from '../components/Modals/FormModal'; 
 import { formatCurrency } from '../utils/formatCurrency';
@@ -104,6 +105,10 @@ const KitchenOrdersPage = () => {
         throw new Error('Orden no seleccionada');
       }
       const orderTotal = Number(selectedOrder.total ?? 0);
+      const totalTendered = sumPayments(paymentData.payments);
+      if (totalTendered < orderTotal) {
+        throw new Error('El monto recibido es insuficiente para completar el pago.');
+      }
       let remainingTotal = orderTotal;
 
       const finalPayments = paymentData.payments.map(p => {
@@ -117,20 +122,38 @@ const KitchenOrdersPage = () => {
         remainingTotal -= amountToRegister;
 
         if (paidAmount > amountToRegister) {
-             return { ...p, amount: orderTotal, amountDisplay: formatCurrency(orderTotal) };
+             return {
+               ...p,
+               amount: amountToRegister,
+               amountDisplay: formatCurrency(amountToRegister),
+               reference: (p?.reference || '').trim(),
+             };
         }
         
         return {
           ...p,
           amount: amountToRegister, 
-          amountDisplay: formatCurrency(amountToRegister)
+          amountDisplay: formatCurrency(amountToRegister),
+          reference: (p?.reference || '').trim(),
         };
       }).filter(p => p.amount > 0);
+
+      if (!finalPayments.length) {
+        throw new Error('Debes registrar al menos un pago válido.');
+      }
 
       await updateOrderStatus(
         selectedOrder.id,
         'Pagada',
-        finalPayments
+        {
+          payments: finalPayments,
+          paymentSummary: {
+            totalTendered,
+            totalApplied: orderTotal,
+            changeGiven: Math.max(totalTendered - orderTotal, 0),
+            paymentCount: finalPayments.length,
+          },
+        }
       );
       fetchOrders();
     } catch (e) {
@@ -191,7 +214,8 @@ const KitchenOrdersPage = () => {
         {
           paymentMethod: 'Efectivo',
           amountDisplay: formatCurrency(total), // Muestra el total formateado
-          amount: total // Almacena el valor numérico
+          amount: total, // Almacena el valor numérico
+          reference: '',
         }
       ]
     });
@@ -213,7 +237,7 @@ const KitchenOrdersPage = () => {
       return {
         payments: [
           ...current,
-          { paymentMethod: 'Efectivo', amountDisplay: '', amount: 0 },
+          { paymentMethod: 'Efectivo', amountDisplay: '', amount: 0, reference: '' },
         ],
       };
     });
@@ -225,20 +249,18 @@ const KitchenOrdersPage = () => {
     }));
   };
 
-  const changePaymentMethod = (idx, method) => {
+  const changePaymentField = (idx, field, value) => {
     setPaymentData(prev => {
       const copy = [...prev.payments];
-      copy[idx] = { ...copy[idx], paymentMethod: method };
-      return { payments: copy };
-    });
-  };
+      copy[idx] = {
+        ...copy[idx],
+        [field]: value,
+      };
 
-  const changePaymentAmount = (idx, display) => {
-    const numeric = parseAmount(display);
-    setPaymentData(prev => {
-      const copy = [...prev.payments];
-      // Actualiza display y el valor numérico (amount)
-      copy[idx] = { ...copy[idx], amountDisplay: display, amount: numeric };
+      if (field === 'amountDisplay') {
+        copy[idx].amount = parseAmount(value);
+      }
+
       return { payments: copy };
     });
   };
@@ -299,17 +321,7 @@ const KitchenOrdersPage = () => {
               orders={ordersByStatus[status]}
               status={status}
               onStatusChange={handleStatusChange}
-              onOpenPayment={(order) => {
-                    setSelectedOrder(order);
-                    setPaymentData({
-                      paymentMethod: 'Efectivo',
-                      amountDisplay: formatCurrency(order.total),
-                      amount: order.total,
-                    });
-                    setChangeDue(0);
-                    setIsModalOpen(true);
-                  }}
-              openPaymentModal={openPaymentModal}
+              onOpenPayment={openPaymentModal}
               onDelete={onDelete}
             />
           </Box>
@@ -370,7 +382,7 @@ const KitchenOrdersPage = () => {
             setSelectedOrder(null);
             resetPaymentForm();
           }}
-          title={`Cobrar Orden #${selectedOrder.id}`} 
+          title={`Cobrar ${getOrderDisplayNumber(selectedOrder)}`} 
           formData={paymentData}
           setFormData={setPaymentData}
           onSubmit={handleConfirmPayment}
@@ -386,21 +398,26 @@ const KitchenOrdersPage = () => {
                 borderTop: '1px solid #eee', 
                 backgroundColor: 'background.paper' 
             }}>
-                <Typography variant="h6" gutterBottom fontWeight={500}>
-                    Total a Pagar: **{formatCurrency(selectedOrder.total)}**
-                </Typography>
-                <Typography
-                    variant="h5"
-                    fontWeight={700}
-                    // Color de error si falta, color de éxito/neutral si sobra o es exacto
-                    color={changeDue < 0 ? 'error.main' : 'success.main'}
-                >
-                    {changeDue < 0
-                        ? `FALTA: ${formatCurrency(Math.abs(changeDue))}`
-                        : changeDue === 0
-                            ? `PAGO EXACTO`
-                            : `VUELTO: ${formatCurrency(changeDue)}`}
-                </Typography>
+                <Stack spacing={0.5}>
+                  <Typography variant="h6" gutterBottom fontWeight={500}>
+                    Total a Pagar: {formatCurrency(selectedOrder.total)}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Recibido: {formatCurrency(sumPayments(paymentData.payments))}
+                  </Typography>
+                  <Typography
+                      variant="h5"
+                      fontWeight={700}
+                      // Color de error si falta, color de éxito/neutral si sobra o es exacto
+                      color={changeDue < 0 ? 'error.main' : 'success.main'}
+                  >
+                      {changeDue < 0
+                          ? `FALTA: ${formatCurrency(Math.abs(changeDue))}`
+                          : changeDue === 0
+                              ? 'PAGO EXACTO'
+                              : `VUELTO: ${formatCurrency(changeDue)}`}
+                  </Typography>
+                </Stack>
             </Box>
           }
 
@@ -423,18 +440,27 @@ const KitchenOrdersPage = () => {
                   key: 'amountDisplay',
                   label: 'Monto',
                   inputProps: { inputMode: 'numeric', placeholder: '0.00' }
+                },
+                {
+                  type: 'text',
+                  key: 'reference',
+                  label: 'Referencia',
+                  helperText: 'Opcional para SINPE o tarjeta',
                 }
               ],
               hooks: {
                 onAdd: addPaymentRow,
                 onRemove: removePaymentRow,
-                onChangeMethod: changePaymentMethod,
-                onChangeAmount: changePaymentAmount
+                onChangeField: changePaymentField,
               }
             },
             {
               type: 'label',
               label: `Total: ${formatCurrency(selectedOrder.total)}`
+            },
+            {
+              type: 'label',
+              label: `Recibido: ${formatCurrency(sumPayments(paymentData.payments))}`,
             },
             {
               type: 'label',
