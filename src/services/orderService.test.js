@@ -68,6 +68,9 @@ describe('saveOrder', () => {
     expect(mockAddDoc).toHaveBeenCalledTimes(1);
     expect(mockAddDoc.mock.calls[0][1]).toEqual(expect.objectContaining({
       orderNumber: expect.stringMatching(/^TKT-\d{8}-TEMP$/),
+      customerPhone: '',
+      serviceType: 'Salón',
+      orderNotes: '',
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
       paidAt: null,
@@ -102,5 +105,21 @@ describe('updateOrderStatus', () => {
       paidAt: expect.any(String),
     }));
     expect(mockUpdateDoc.mock.calls[0][1].createdAt).toBeUndefined();
+  });
+
+  it('stores payment summary metadata when provided as a structured payload', async () => {
+    mockUpdateDoc.mockResolvedValue();
+
+    await updateOrderStatus('order-2', 'Pagada', {
+      payments: [{ paymentMethod: 'Sinpe', amount: 1500, reference: 'ABC-123' }],
+      paymentSummary: { totalTendered: 1500, totalApplied: 1500, changeGiven: 0, paymentCount: 1 },
+    });
+
+    expect(mockUpdateDoc.mock.calls[0][1]).toEqual(expect.objectContaining({
+      status: 'Pagada',
+      paymentMethod: [{ paymentMethod: 'Sinpe', amount: 1500, reference: 'ABC-123' }],
+      paymentSummary: { totalTendered: 1500, totalApplied: 1500, changeGiven: 0, paymentCount: 1 },
+      paidAt: expect.any(String),
+    }));
   });
 });

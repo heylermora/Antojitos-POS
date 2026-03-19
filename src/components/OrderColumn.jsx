@@ -77,6 +77,9 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, onDelete})
                 items={order.items}
                 currentStatus={order.status}
                 customerName={order.customerName}
+                customerPhone={order.customerPhone}
+                serviceType={order.serviceType}
+                orderNotes={order.orderNotes}
                 total={order.total}
                 orderNumber={getOrderDisplayNumber(order)}
                 onStatusChange={(newStatus) => handleStatusChange(order, newStatus)}

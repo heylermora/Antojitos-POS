@@ -30,11 +30,12 @@ const parseDisplayDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const KitchenOrder = ({ date, items, currentStatus, customerName, total, orderNumber, onStatusChange, onEdit, onDelete }) => {
+const KitchenOrder = ({ date, items, currentStatus, customerName, customerPhone, serviceType, orderNotes, total, orderNumber, onStatusChange, onEdit, onDelete }) => {
   const formattedDate = parseDisplayDate(date);
   
   // Para el Tooltip del cliente
   const displayCustomerName = customerName?.trim() || '—';
+  const displayPhone = customerPhone?.trim() || '';
 
   const STATUS_BORDER_COLORS = {
     'Por Hacer': '#E57373', // Rojo suave (Red 300)
@@ -60,6 +61,9 @@ const KitchenOrder = ({ date, items, currentStatus, customerName, total, orderNu
           </Typography>
           <Typography variant="subtitle1" fontWeight="bold">
             👤 Cliente: {displayCustomerName}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Servicio: {serviceType || 'Salón'}{displayPhone ? ` · Tel: ${displayPhone}` : ''}
           </Typography>
         </Box>
         <Box>
@@ -96,6 +100,15 @@ const KitchenOrder = ({ date, items, currentStatus, customerName, total, orderNu
       </Box>
 
       <Divider sx={{ my: 1.5 }} />
+
+      {(orderNotes || '').trim() && (
+        <>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+            Nota general: {orderNotes.trim()}
+          </Typography>
+          <Divider sx={{ my: 1.5 }} />
+        </>
+      )}
 
       {/* Lista de productos mejorada */}
       <Box sx={{ maxHeight: 150, overflowY: 'auto' }}>

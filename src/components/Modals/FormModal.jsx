@@ -125,40 +125,48 @@ const FormModal = ({
 
               const handleAdd = () => hooks.onAdd?.();
               const handleRemove = (i) => hooks.onRemove?.(i);
-              const handleMethod = (i, v) => hooks.onChangeMethod?.(i, v);
-              const handleAmount = (i, v) => hooks.onChangeAmount?.(i, v);
+              const handleFieldChange = (i, fieldKey, nextValue) => hooks.onChangeField?.(i, fieldKey, nextValue);
 
               return (
                 <Stack key={key} spacing={1}>
                   <Typography variant="subtitle2">{label}</Typography>
 
                   {list.map((row, i) => (
-                    <Stack key={`${key}-${i}`} direction="row" spacing={1} alignItems="center">
-                      {/* Método */}
-                      <FormControl fullWidth>
-                        <InputLabel>Método</InputLabel>
-                        <Select
-                          value={row.paymentMethod || ''}
-                          label="Método"
-                          onChange={(e) => handleMethod(i, e.target.value)}
-                        >
-                          {(itemSchema[0]?.options || []).map((opt) => (
-                            <MenuItem key={opt.value || opt} value={opt.value || opt}>
-                              {opt.label || opt}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                    <Stack key={`${key}-${i}`} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                      {itemSchema.map((itemField) => {
+                        if (itemField.type === 'select') {
+                          return (
+                            <FormControl key={`${key}-${i}-${itemField.key}`} fullWidth>
+                              <InputLabel>{itemField.label}</InputLabel>
+                              <Select
+                                value={row[itemField.key] || ''}
+                                label={itemField.label}
+                                onChange={(e) => handleFieldChange(i, itemField.key, e.target.value)}
+                              >
+                                {(itemField.options || []).map((opt) => (
+                                  <MenuItem key={opt.value || opt} value={opt.value || opt}>
+                                    {opt.label || opt}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          );
+                        }
 
-                      {/* Monto */}
-                      <TextField
-                        label="Monto"
-                        value={row.amountDisplay || ''}
-                        onChange={(e) => handleAmount(i, e.target.value)}
-                        inputProps={itemSchema[1]?.inputProps}
-                        fullWidth
-                        InputLabelProps={{ shrink: true }}
-                      />
+                        return (
+                          <TextField
+                            key={`${key}-${i}-${itemField.key}`}
+                            label={itemField.label}
+                            value={row[itemField.key] || ''}
+                            onChange={(e) => handleFieldChange(i, itemField.key, e.target.value)}
+                            inputProps={itemField.inputProps}
+                            helperText={itemField.helperText}
+                            multiline={itemField.multiline}
+                            fullWidth
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        );
+                      })}
 
                       {/* Quitar */}
                       <IconButton

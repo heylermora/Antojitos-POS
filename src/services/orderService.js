@@ -33,6 +33,12 @@ const normalizeOrder = (snapshotDoc) => {
   return {
     id: snapshotDoc.id,
     ...data,
+    customerName: data.customerName || '',
+    customerPhone: data.customerPhone || '',
+    serviceType: data.serviceType || 'Salón',
+    orderNotes: data.orderNotes || '',
+    paymentSummary: data.paymentSummary || null,
+    paymentMethod: Array.isArray(data.paymentMethod) ? data.paymentMethod : data.paymentMethod || null,
   };
 };
 
@@ -150,6 +156,10 @@ export const saveOrder = async (orderData) => {
     const createdAt = createdDate.toISOString();
     const docRef = await addDoc(collection(db, ORDERS_COLLECTION), {
       ...orderData,
+      customerName: orderData.customerName || '',
+      customerPhone: orderData.customerPhone || '',
+      serviceType: orderData.serviceType || 'Salón',
+      orderNotes: orderData.orderNotes || '',
       orderNumber: buildOrderNumber(createdDate),
       createdAt,
       updatedAt: createdAt,
@@ -171,7 +181,7 @@ export const saveOrder = async (orderData) => {
   }
 };
 
-export const updateOrderStatus = async (orderId, newStatus, paymentMethod = null) => {
+export const updateOrderStatus = async (orderId, newStatus, paymentPayload = null) => {
   try {
     const orderRef = doc(db, ORDERS_COLLECTION, orderId);
     const payload = {
@@ -179,8 +189,17 @@ export const updateOrderStatus = async (orderId, newStatus, paymentMethod = null
       status: newStatus,
     };
 
-    if (paymentMethod !== null) {
-      payload.paymentMethod = paymentMethod;
+    if (Array.isArray(paymentPayload)) {
+      payload.paymentMethod = paymentPayload;
+    } else if (paymentPayload && typeof paymentPayload === 'object') {
+      if (Array.isArray(paymentPayload.payments)) {
+        payload.paymentMethod = paymentPayload.payments;
+      }
+      if (paymentPayload.paymentSummary) {
+        payload.paymentSummary = paymentPayload.paymentSummary;
+      }
+    } else if (paymentPayload !== null) {
+      payload.paymentMethod = paymentPayload;
     }
 
     if (newStatus === 'Pagada') {

@@ -45,6 +45,16 @@ const formatDateTime = (order) => {
   return date ? date.toLocaleString('es-CR') : '—';
 };
 
+const formatPaymentDetails = (payments = []) => {
+  if (!Array.isArray(payments) || !payments.length) return ['Otro'];
+
+  return payments.map((payment) => {
+    const reference = payment.reference?.trim();
+    const amount = Number(payment.amount || 0);
+    return `${payment.paymentMethod || 'Otro'} · ${formatCurrency(amount)}${reference ? ` · Ref: ${reference}` : ''}`;
+  });
+};
+
 const SalesHistoryPage = () => {
   const [history, setHistory] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -159,6 +169,20 @@ const SalesHistoryPage = () => {
                 <Typography variant="body2"><strong>Ticket:</strong> {getOrderDisplayNumber(selectedOrder)}</Typography>
                 <Typography variant="body2"><strong>Fecha:</strong> {formatDateTime(selectedOrder)}</Typography>
                 <Typography variant="body2"><strong>Cliente:</strong> {selectedOrder.customerName?.trim() || '—'}</Typography>
+                <Typography variant="body2"><strong>Teléfono:</strong> {selectedOrder.customerPhone?.trim() || '—'}</Typography>
+                <Typography variant="body2"><strong>Servicio:</strong> {selectedOrder.serviceType || 'Salón'}</Typography>
+                <Typography variant="body2"><strong>Notas:</strong> {selectedOrder.orderNotes?.trim() || '—'}</Typography>
+                <Typography variant="body2"><strong>Pagos:</strong></Typography>
+                <Stack sx={{ pl: 2 }}>
+                  {formatPaymentDetails(selectedOrder.paymentMethod).map((line) => (
+                    <Typography key={line} variant="body2">• {line}</Typography>
+                  ))}
+                </Stack>
+                {selectedOrder.paymentSummary && (
+                  <Typography variant="body2">
+                    <strong>Resumen de cobro:</strong> recibido {formatCurrency(selectedOrder.paymentSummary.totalTendered || 0)} · aplicado {formatCurrency(selectedOrder.paymentSummary.totalApplied || selectedOrder.total || 0)} · vuelto {formatCurrency(selectedOrder.paymentSummary.changeGiven || 0)}
+                  </Typography>
+                )}
               </Stack>
               <TableContainer component={Paper} elevation={0}>
                 <Table size="small">
