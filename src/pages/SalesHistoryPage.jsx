@@ -18,10 +18,11 @@ import {
   Paper, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, Button, CircularProgress,
 } from '@mui/material';
-import {Visibility, ReceiptLong} from '@mui/icons-material';
+import {Download, Print, Visibility, ReceiptLong} from '@mui/icons-material';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getOrderDisplayNumber, getOrderEventDate, getPaidOrdersGroupedByDay } from '../services/orderService';
 import PageTitle from '../components/Titles/PageTitle';
+import { buildPrintableTicketHtml, buildSalesCsv, getPaymentLines } from '../utils/salesReporting';
 
 const getResumenPorMetodo = (orders = []) =>
   orders.reduce((acc, order) => {
@@ -45,16 +46,6 @@ const formatDateTime = (order) => {
   return date ? date.toLocaleString('es-CR') : '—';
 };
 
-const formatPaymentDetails = (payments = []) => {
-  if (!Array.isArray(payments) || !payments.length) return ['Otro'];
-
-  return payments.map((payment) => {
-    const reference = payment.reference?.trim();
-    const amount = Number(payment.amount || 0);
-    return `${payment.paymentMethod || 'Otro'} · ${formatCurrency(amount)}${reference ? ` · Ref: ${reference}` : ''}`;
-  });
-};
-
 const SalesHistoryPage = () => {
   const [history, setHistory] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -71,6 +62,33 @@ const SalesHistoryPage = () => {
   }, []);
 
   const dates = Object.keys(history); // ya vienen ordenadas desde el servicio
+  const allOrders = dates.flatMap((date) => history[date] || []);
+
+  const handleExportCsv = () => {
+    const csv = buildSalesCsv(allOrders);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `ventas-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintTicket = () => {
+    if (!selectedOrder) return;
+
+    const printWindow = window.open('', '_blank', 'width=720,height=900');
+    if (!printWindow) return;
+
+    printWindow.document.open();
+    printWindow.document.write(buildPrintableTicketHtml(selectedOrder));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   if (isLoading) {
     return (
@@ -87,6 +105,12 @@ const SalesHistoryPage = () => {
         subtitle="Registro diario de ventas"
         icon={ReceiptLong}
       />
+
+      <Box display="flex" justifyContent="flex-end" mb={2}>
+        <Button variant="outlined" startIcon={<Download />} onClick={handleExportCsv} disabled={!allOrders.length}>
+          Exportar CSV
+        </Button>
+      </Box>
 
       {dates.length === 0 ? (
         <Typography>No hay ventas registradas.</Typography>
@@ -174,7 +198,7 @@ const SalesHistoryPage = () => {
                 <Typography variant="body2"><strong>Notas:</strong> {selectedOrder.orderNotes?.trim() || '—'}</Typography>
                 <Typography variant="body2"><strong>Pagos:</strong></Typography>
                 <Stack sx={{ pl: 2 }}>
-                  {formatPaymentDetails(selectedOrder.paymentMethod).map((line) => (
+                  {getPaymentLines(selectedOrder).map((line) => (
                     <Typography key={line} variant="body2">• {line}</Typography>
                   ))}
                 </Stack>
@@ -222,6 +246,9 @@ const SalesHistoryPage = () => {
           )}
         </DialogContent>
         <DialogActions>
+          <Button startIcon={<Print />} onClick={handlePrintTicket} disabled={!selectedOrder}>
+            Imprimir ticket
+          </Button>
           <Button onClick={() => { setOpen(false); setSelectedOrder(null); }}>Cerrar</Button>
         </DialogActions>
       </Dialog>
