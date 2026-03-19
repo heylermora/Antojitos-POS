@@ -85,6 +85,26 @@ describe('saveOrder', () => {
       orderNumber: 'TKT-' + new Date(mockAddDoc.mock.calls[0][1].createdAt).toISOString().slice(0, 10).replace(/-/g, '') + '-ABC1',
     });
   });
+
+  it('returns the temporary ticket number instead of throwing when the follow-up patch fails', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'abc12345' });
+    mockUpdateDoc.mockRejectedValue(new Error('transient firestore error'));
+
+    await expect(saveOrder({
+      customerName: 'Ana',
+      status: 'Por Hacer',
+      items: [{ name: 'Taco', quantity: 1, price: 1000 }],
+      total: 1000,
+      timestamp: new Date('2026-03-19T12:00:00.000Z'),
+    })).resolves.toEqual({
+      id: 'abc12345',
+      orderNumber: mockAddDoc.mock.calls[0][1].orderNumber,
+    });
+
+    expect(mockAddDoc).toHaveBeenCalledTimes(1);
+    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockAddDoc.mock.calls[0][1].orderNumber).toMatch(/^TKT-\d{8}-TEMP$/);
+  });
 });
 
 describe('updateOrderStatus', () => {

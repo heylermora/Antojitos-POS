@@ -154,23 +154,38 @@ export const saveOrder = async (orderData) => {
   try {
     const createdDate = new Date();
     const createdAt = createdDate.toISOString();
+    const temporaryOrderNumber = buildOrderNumber(createdDate);
     const docRef = await addDoc(collection(db, ORDERS_COLLECTION), {
       ...orderData,
       customerName: orderData.customerName || '',
       customerPhone: orderData.customerPhone || '',
       serviceType: orderData.serviceType || 'Salón',
       orderNotes: orderData.orderNotes || '',
-      orderNumber: buildOrderNumber(createdDate),
+      orderNumber: temporaryOrderNumber,
       createdAt,
       updatedAt: createdAt,
       paidAt: null,
     });
     console.log('[saveOrder] Orden guardada con ID:', docRef.id);
     const orderNumber = buildOrderNumber(createdDate, docRef.id);
-    await updateDoc(doc(db, ORDERS_COLLECTION, docRef.id), {
-      orderNumber,
-      updatedAt: new Date().toISOString(),
-    });
+
+    try {
+      await updateDoc(doc(db, ORDERS_COLLECTION, docRef.id), {
+        orderNumber,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (updateError) {
+      console.error(
+        '[saveOrder] La orden se creó, pero no se pudo actualizar el número definitivo. Se conserva el temporal.',
+        updateError
+      );
+
+      return {
+        id: docRef.id,
+        orderNumber: temporaryOrderNumber,
+      };
+    }
+
     return {
       id: docRef.id,
       orderNumber,
