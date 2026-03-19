@@ -24,6 +24,7 @@ import {
   Typography,
   Stack,
   CircularProgress,
+  Alert,
   TextField,
   Paper,
   InputAdornment,
@@ -55,6 +56,7 @@ const OrderCreationPage = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedOrderNumber, setLastSavedOrderNumber] = useState('');
   const [errorState, setErrorState] = useState({
     open: false,
     title: 'Error',
@@ -194,10 +196,11 @@ const OrderCreationPage = () => {
     };
 
     try {
-      await saveOrder(order);
+      const savedOrder = await saveOrder(order);
       setSaleItems([]);
       setSelectedProduct(null);
       setCustomerName('');
+      setLastSavedOrderNumber(savedOrder?.orderNumber || '');
     } catch (err) {
       console.error(err);
       showError(
@@ -237,6 +240,12 @@ const OrderCreationPage = () => {
         subtitle="Registra un pedido de forma rápida y sencilla"
         icon={RestaurantMenu}
       />
+
+      {lastSavedOrderNumber && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setLastSavedOrderNumber('')}>
+          Comanda guardada correctamente: <strong>{lastSavedOrderNumber}</strong>
+        </Alert>
+      )}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

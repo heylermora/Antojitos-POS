@@ -5,8 +5,9 @@ import {
 } from '@mui/material';
 import KitchenOrder from './KitchenOrder';
 import ConfirmModal from './Modals/ConfirmModal';
+import { getOrderDisplayNumber, getOrderEventDate } from '../services/orderService';
 
-const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymentModal, onDelete}) => {
+const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, onDelete}) => {
   const [confirmData, setConfirmData] = useState(null);
   const [confirmDel, setConfirmDel] = useState({ open: false, order: null });
 
@@ -15,7 +16,6 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
   const handleStatusChange = (order, newStatus) => {
     if (newStatus === 'Pagada') {
       onOpenPayment(order);
-      openPaymentModal();
       return;
     }
 
@@ -69,14 +69,16 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
           </Grid>
         ) : (
           orders
-            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+            .sort((a, b) => (getOrderEventDate(a)?.getTime() || 0) - (getOrderEventDate(b)?.getTime() || 0))
             .map((order) => (
               <KitchenOrder
-                date={order.timestamp}
+                key={order.id}
+                date={getOrderEventDate(order) || order.timestamp}
                 items={order.items}
                 currentStatus={order.status}
                 customerName={order.customerName}
                 total={order.total}
+                orderNumber={getOrderDisplayNumber(order)}
                 onStatusChange={(newStatus) => handleStatusChange(order, newStatus)}
                 onEdit={() => {}}
                 onDelete={() => askDelete(order)}
@@ -99,7 +101,7 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
       <ConfirmModal
         open={confirmDel.open}
         title="Eliminar orden"
-        description={`¿Eliminar la orden "${confirmDel.order?.folio || confirmDel.order?.id || ''}"? Esta acción no se puede deshacer.`}
+        description={`¿Eliminar la orden "${getOrderDisplayNumber(confirmDel.order)}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
         confirmColor="error"

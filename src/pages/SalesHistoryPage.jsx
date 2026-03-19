@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import {Visibility, ReceiptLong} from '@mui/icons-material';
 import { formatCurrency } from '../utils/formatCurrency';
-import { getPaidOrdersGroupedByDay } from '../services/orderService';
+import { getOrderDisplayNumber, getOrderEventDate, getPaidOrdersGroupedByDay } from '../services/orderService';
 import PageTitle from '../components/Titles/PageTitle';
 
 const getResumenPorMetodo = (orders = []) =>
@@ -38,8 +38,12 @@ const getResumenPorMetodo = (orders = []) =>
     return acc;
   }, {});
 
-const formatTime = (dateStr) =>
-  new Date(dateStr).toLocaleString('es-CR', { hour: '2-digit', minute: '2-digit' });
+const formatTime = (value) => (value ? value.toLocaleString('es-CR', { hour: '2-digit', minute: '2-digit' }) : '—');
+
+const formatDateTime = (order) => {
+  const date = getOrderEventDate(order);
+  return date ? date.toLocaleString('es-CR') : '—';
+};
 
 const SalesHistoryPage = () => {
   const [history, setHistory] = useState({});
@@ -112,6 +116,7 @@ const SalesHistoryPage = () => {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
+                        <TableCell>Ticket</TableCell>
                         <TableCell>Hora</TableCell>
                         <TableCell>Método</TableCell>
                         <TableCell>Total</TableCell>
@@ -121,7 +126,8 @@ const SalesHistoryPage = () => {
                     <TableBody>
                       {orders.map((order, index) => (
                         <TableRow key={order.id || index}>
-                          <TableCell>{formatTime(order.createdAt)}</TableCell>
+                          <TableCell>{getOrderDisplayNumber(order)}</TableCell>
+                          <TableCell>{formatTime(getOrderEventDate(order))}</TableCell>
                           <TableCell>
                             {Array.isArray(order.paymentMethod) && order.paymentMethod.length
                               ? order.paymentMethod.map(p => p.paymentMethod).join(', ')
@@ -148,38 +154,45 @@ const SalesHistoryPage = () => {
         <DialogTitle>Detalle de Venta</DialogTitle>
         <DialogContent dividers>
           {selectedOrder ? (
-            <TableContainer component={Paper} elevation={0}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Producto</TableCell>
-                    <TableCell align="right">Cant.</TableCell>
-                    <TableCell align="right">Precio</TableCell>
-                    <TableCell align="right">Subtotal</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {selectedOrder.items?.map((item, i) => (
-                    <TableRow key={i}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell align="right">{item.quantity}</TableCell>
-                      <TableCell align="right">{formatCurrency(item.price)}</TableCell>
+            <>
+              <Stack spacing={0.5} mb={2}>
+                <Typography variant="body2"><strong>Ticket:</strong> {getOrderDisplayNumber(selectedOrder)}</Typography>
+                <Typography variant="body2"><strong>Fecha:</strong> {formatDateTime(selectedOrder)}</Typography>
+                <Typography variant="body2"><strong>Cliente:</strong> {selectedOrder.customerName?.trim() || '—'}</Typography>
+              </Stack>
+              <TableContainer component={Paper} elevation={0}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Producto</TableCell>
+                      <TableCell align="right">Cant.</TableCell>
+                      <TableCell align="right">Precio</TableCell>
+                      <TableCell align="right">Subtotal</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {selectedOrder.items?.map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell align="right">{item.quantity}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.price)}</TableCell>
+                        <TableCell align="right">
+                          {formatCurrency(item.price * item.quantity)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow>
+                      <TableCell colSpan={3} align="right">
+                        <strong>Total</strong>
+                      </TableCell>
                       <TableCell align="right">
-                        {formatCurrency(item.price * item.quantity)}
+                        <strong>{formatCurrency(selectedOrder.total)}</strong>
                       </TableCell>
                     </TableRow>
-                  ))}
-                  <TableRow>
-                    <TableCell colSpan={3} align="right">
-                      <strong>Total</strong>
-                    </TableCell>
-                    <TableCell align="right">
-                      <strong>{formatCurrency(selectedOrder.total)}</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
           ) : (
             <Typography>No se encontró la venta.</Typography>
           )}

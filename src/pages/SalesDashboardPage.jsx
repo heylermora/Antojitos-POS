@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 import { BarChart as Chart } from '@mui/icons-material';
 import PageTitle from '../components/Titles/PageTitle';
-import { getPaidOrders } from '../services/orderService';
+import { getOrderEventDate, getPaidOrders } from '../services/orderService';
 import { getProducts } from '../services/productService';
 import { getIngredients } from '../services/ingredientService';
 import { getRecipes } from '../services/recipeService';
@@ -64,13 +64,7 @@ const SalesDashboardPage = () => {
   }, []);
 
   const getOrderTimestamp = useCallback((order) => {
-    if (order?.timestamp?.seconds) {
-      return new Date(order.timestamp.seconds * 1000 + order.timestamp.nanoseconds / 1e6);
-    }
-    if (order?.createdAt) {
-      return new Date(order.createdAt);
-    }
-    return null;
+    return getOrderEventDate(order);
   }, []);
 
   const applyDateRange = useCallback((data, filters) => {

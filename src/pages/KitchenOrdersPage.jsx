@@ -19,7 +19,7 @@ import {
   Alert,
 } from '@mui/material';
 
-import { getOrders, updateOrderStatus, deleteOrder } from '../services/orderService';
+import { getOrders, updateOrderStatus, deleteOrder, getOrderDisplayNumber } from '../services/orderService';
 import OrderColumn from '../components/OrderColumn'; 
 import FormModal from '../components/Modals/FormModal'; 
 import { formatCurrency } from '../utils/formatCurrency';
@@ -299,17 +299,7 @@ const KitchenOrdersPage = () => {
               orders={ordersByStatus[status]}
               status={status}
               onStatusChange={handleStatusChange}
-              onOpenPayment={(order) => {
-                    setSelectedOrder(order);
-                    setPaymentData({
-                      paymentMethod: 'Efectivo',
-                      amountDisplay: formatCurrency(order.total),
-                      amount: order.total,
-                    });
-                    setChangeDue(0);
-                    setIsModalOpen(true);
-                  }}
-              openPaymentModal={openPaymentModal}
+              onOpenPayment={openPaymentModal}
               onDelete={onDelete}
             />
           </Box>
@@ -370,7 +360,7 @@ const KitchenOrdersPage = () => {
             setSelectedOrder(null);
             resetPaymentForm();
           }}
-          title={`Cobrar Orden #${selectedOrder.id}`} 
+          title={`Cobrar ${getOrderDisplayNumber(selectedOrder)}`} 
           formData={paymentData}
           setFormData={setPaymentData}
           onSubmit={handleConfirmPayment}
