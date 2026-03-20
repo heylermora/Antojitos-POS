@@ -1,22 +1,7 @@
 /**
  * 📋 FormModal – Modal configurable con campos dinámicos (MUI)
- * 
- * Soporta campos tipo 'text', 'select' y 'label'. Ideal para formularios genéricos.
  *
- * 🔧 Props:
- * ┌────────────────────┬────────────────────────────────────┐
- * │ open               │ Mostrar/ocultar modal              │
- * │ title              │ Título del formulario              │
- * │ fields             │ [{ type, key, label, ... }]        │
- * │ formData           │ Datos actuales                     │
- * │ setFormData        │ Actualiza datos                    │
- * │ onClose            │ Al cerrar modal                    │
- * │ onSubmit           │ Al guardar                         │
- * │ submitLabel        │ Texto botón guardar                │
- * │ cancelLabel        │ Texto botón cancelar               │
- * │ submitDisabled     │ Desactiva botón guardar            │
- * │ maxWidth           │ Tamaño del modal (default: 'sm')   │
- * └────────────────────┴────────────────────────────────────┘
+ * Soporta campos tipo 'text', 'select', 'multiselect', 'label', 'custom' y 'repeatable'.
  */
 
 import {
@@ -32,10 +17,14 @@ import {
   InputLabel,
   FormControl,
   Stack,
-  IconButton
+  IconButton,
+  Checkbox,
+  ListItemText,
+  Chip,
+  Box,
 } from '@mui/material';
 
-import {Add, Delete} from '@mui/icons-material';
+import { Add, Delete } from '@mui/icons-material';
 
 const FormModal = ({
   open,
@@ -60,8 +49,19 @@ const FormModal = ({
       <DialogContent>
         <Stack spacing={2} mt={1}>
           {fields.map((field, index) => {
-            const { type, key, label, options, inputProps, multiline, readOnly, variant = 'outlined', custom } = field;
-            const value = formData[key] || '';
+            const {
+              type,
+              key,
+              label,
+              options = [],
+              inputProps,
+              multiline,
+              readOnly,
+              variant = 'outlined',
+              custom,
+              renderValue,
+            } = field;
+            const value = formData[key] ?? (type === 'multiselect' ? [] : '');
 
             if (type === 'select') {
               return (
@@ -82,6 +82,42 @@ const FormModal = ({
               );
             }
 
+            if (type === 'multiselect') {
+              const selectedValues = Array.isArray(value) ? value : [];
+              return (
+                <FormControl key={key} fullWidth>
+                  <InputLabel>{label}</InputLabel>
+                  <Select
+                    multiple
+                    value={selectedValues}
+                    label={label}
+                    onChange={(e) => handleChange(key, e.target.value)}
+                    renderValue={(selected) => {
+                      if (renderValue) return renderValue(selected);
+                      return (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                          {selected.map((item) => (
+                            <Chip key={item} size="small" label={item} />
+                          ))}
+                        </Box>
+                      );
+                    }}
+                  >
+                    {options.map((opt) => {
+                      const optionValue = opt.value || opt;
+                      const optionLabel = opt.label || opt;
+                      return (
+                        <MenuItem key={optionValue} value={optionValue}>
+                          <Checkbox checked={selectedValues.includes(optionValue)} />
+                          <ListItemText primary={optionLabel} />
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              );
+            }
+
             if (type === 'text') {
               return (
                 <TextField
@@ -89,14 +125,18 @@ const FormModal = ({
                   label={label}
                   value={value}
                   onChange={(e) =>
-                        custom?.onChange ? custom.onChange(e.target.value) : handleChange(key, e.target.value)
+                    custom?.onChange ? custom.onChange(e.target.value) : handleChange(key, e.target.value)
                   }
                   fullWidth
                   inputProps={inputProps}
                   InputLabelProps={{ shrink: true }}
                   multiline={multiline}
-                  readOnly={readOnly}
                   variant={variant}
+                  slotProps={{
+                    input: {
+                      readOnly,
+                    },
+                  }}
                 />
               );
             }
@@ -104,16 +144,23 @@ const FormModal = ({
             if (type === 'label') {
               return (
                 <Typography
-                 key={index}
-                 color={field.color || 'text.secondary'}
-                 variant={field.variant || 'body2'}
+                  key={index}
+                  color={field.color || 'text.secondary'}
+                  variant={field.variant || 'body2'}
                 >
                   {label}
                 </Typography>
               );
             }
 
-            // ---- REPEATABLE (pagos múltiples) ----
+            if (type === 'custom') {
+              return (
+                <Box key={key || index}>
+                  {typeof field.render === 'function' ? field.render({ formData, setFormData, handleChange }) : null}
+                </Box>
+              );
+            }
+
             if (type === 'repeatable') {
               const {
                 itemSchema = [],
@@ -168,7 +215,6 @@ const FormModal = ({
                         );
                       })}
 
-                      {/* Quitar */}
                       <IconButton
                         aria-label="Eliminar"
                         onClick={() => handleRemove(i)}
@@ -179,7 +225,6 @@ const FormModal = ({
                     </Stack>
                   ))}
 
-                  {/* Agregar */}
                   <Button
                     startIcon={<Add />}
                     onClick={handleAdd}

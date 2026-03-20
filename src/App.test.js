@@ -7,6 +7,7 @@ jest.mock('./services/authService', () => ({
   isAuthenticated: () => false,
   subscribeAuth: () => mockUnsubscribe,
   logout: jest.fn(),
+  getCurrentRole: () => 'collaborator',
 }));
 
 test('renders login screen', () => {

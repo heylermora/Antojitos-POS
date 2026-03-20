@@ -3,19 +3,65 @@ import { db } from '../lib/firebase';
 
 const INGREDIENTS_COLLECTION = 'ingredients';
 
+const normalizeCategories = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value.trim()];
+  }
+
+  return ['General'];
+};
+
+const normalizeSuppliers = (value, fallback = '') => {
+  const supplierNames = Array.isArray(value)
+    ? value.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+
+  if (!supplierNames.length && fallback) {
+    return [fallback];
+  }
+
+  return [...new Set(supplierNames)];
+};
+
 const normalizeIngredient = (docSnap) => {
   const data = docSnap.data() || {};
+  const categories = normalizeCategories(data.categories || data.category);
+  const supplierNames = normalizeSuppliers(data.supplierNames, data.supplierName);
+
   return {
     id: docSnap.id,
     name: data.name || '',
-    category: data.category || 'General',
+    category: categories[0] || 'General',
+    categories,
     baseUnit: data.baseUnit || 'unit',
     currentUnitCost: Number(data.currentUnitCost) || 0,
-    supplierName: data.supplierName || '',
+    supplierName: supplierNames[0] || data.supplierName || '',
+    supplierNames,
     active: data.active !== false,
     lastPurchaseAt: data.lastPurchaseAt || null,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
+  };
+};
+
+const buildIngredientPayload = (ingredient = {}, { includeCreateTimestamps = false } = {}) => {
+  const categories = normalizeCategories(ingredient.categories || ingredient.category);
+  const supplierNames = normalizeSuppliers(ingredient.supplierNames, ingredient.supplierName);
+
+  return {
+    ...ingredient,
+    category: categories[0] || 'General',
+    categories,
+    currentUnitCost: Number(ingredient.currentUnitCost) || 0,
+    supplierName: supplierNames[0] || '',
+    supplierNames,
+    active: ingredient.active !== false,
+    ...(includeCreateTimestamps ? { createdAt: serverTimestamp() } : {}),
+    updatedAt: serverTimestamp(),
   };
 };
 
@@ -25,21 +71,11 @@ export const getIngredients = async () => {
 };
 
 export const createIngredient = async (ingredient) => {
-  await addDoc(collection(db, INGREDIENTS_COLLECTION), {
-    ...ingredient,
-    currentUnitCost: Number(ingredient.currentUnitCost) || 0,
-    active: ingredient.active !== false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  await addDoc(collection(db, INGREDIENTS_COLLECTION), buildIngredientPayload(ingredient, { includeCreateTimestamps: true }));
 };
 
 export const updateIngredient = async (id, ingredient) => {
-  await updateDoc(doc(db, INGREDIENTS_COLLECTION, id), {
-    ...ingredient,
-    currentUnitCost: Number(ingredient.currentUnitCost) || 0,
-    updatedAt: serverTimestamp(),
-  });
+  await updateDoc(doc(db, INGREDIENTS_COLLECTION, id), buildIngredientPayload(ingredient));
 };
 
 export const saveIngredient = async (ingredient) => {
@@ -49,13 +85,7 @@ export const saveIngredient = async (ingredient) => {
   }
 
   const ref = doc(collection(db, INGREDIENTS_COLLECTION));
-  await setDoc(ref, {
-    ...ingredient,
-    currentUnitCost: Number(ingredient.currentUnitCost) || 0,
-    active: ingredient.active !== false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  await setDoc(ref, buildIngredientPayload(ingredient, { includeCreateTimestamps: true }));
   return ref.id;
 };
 
@@ -63,12 +93,15 @@ export const deleteIngredient = async (id) => {
   await deleteDoc(doc(db, INGREDIENTS_COLLECTION, id));
 };
 
-export const applyIngredientCostUpdate = async ({ ingredientId, supplierName, unitCost, purchasedAt }) => {
+export const applyIngredientCostUpdate = async ({ ingredientId, supplierName, supplierNames = [], unitCost, purchasedAt }) => {
   if (!ingredientId) return;
+
+  const normalizedSuppliers = normalizeSuppliers(supplierNames, supplierName);
 
   await updateDoc(doc(db, INGREDIENTS_COLLECTION, ingredientId), {
     currentUnitCost: Number(unitCost) || 0,
-    supplierName: supplierName || '',
+    supplierName: normalizedSuppliers[0] || '',
+    supplierNames: normalizedSuppliers,
     lastPurchaseAt: purchasedAt || new Date().toISOString(),
     updatedAt: serverTimestamp(),
   });
@@ -80,6 +113,7 @@ export const clearIngredientCostUpdate = async (ingredientId) => {
   await updateDoc(doc(db, INGREDIENTS_COLLECTION, ingredientId), {
     currentUnitCost: 0,
     supplierName: '',
+    supplierNames: [],
     lastPurchaseAt: null,
     updatedAt: serverTimestamp(),
   });

@@ -17,6 +17,9 @@ import { auth } from '../lib/firebase';
 
 const STORAGE_KEY = 'app.auth.user';
 
+const ROLE_KEY = 'app.auth.role';
+const DEFAULT_ROLE = 'collaborator';
+
 // 🔹 Config de sesión máxima
 const SESSION_EXPIRES_AT_KEY = 'app.auth.expiresAt';
 const MAX_SESSION_MS = 12 * 60 * 60 * 1000; // 12 horas
@@ -112,6 +115,7 @@ export async function logout() {
   await fbSignOut(auth);
   store.clear();
   clearSessionExpiration(); // 🔹 limpiar expiración
+  localStorage.removeItem(ROLE_KEY);
 }
 
 /** Usuario actual (lite) desde memoria o localStorage */
@@ -182,4 +186,14 @@ export async function hydrateAuthOnBoot() {
 export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email);
   return true;
+}
+
+export function setCurrentRole(role) {
+  const nextRole = role === 'cook' ? 'cook' : DEFAULT_ROLE;
+  localStorage.setItem(ROLE_KEY, nextRole);
+  return nextRole;
+}
+
+export function getCurrentRole() {
+  return localStorage.getItem(ROLE_KEY) || DEFAULT_ROLE;
 }
