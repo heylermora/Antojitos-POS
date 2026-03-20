@@ -25,6 +25,9 @@ const emptyIngredient = {
   baseUnit: 'g',
   currentUnitCost: '',
   supplierName: '',
+  onHandQuantity: '',
+  reorderPoint: '',
+  wastePercent: '',
   active: true,
 };
 
@@ -54,6 +57,9 @@ const IngredientsPage = () => {
     const payload = {
       ...formData,
       currentUnitCost: Number(formData.currentUnitCost) || 0,
+      onHandQuantity: Number(formData.onHandQuantity) || 0,
+      reorderPoint: Number(formData.reorderPoint) || 0,
+      wastePercent: Number(formData.wastePercent) || 0,
       active: String(formData.active) !== 'false',
     };
 
@@ -89,7 +95,7 @@ const IngredientsPage = () => {
     <Box>
       <PageTitle
         title="Insumos"
-        subtitle="Administra materias primas y su costo unitario actual"
+        subtitle="Administra materias primas, costo unitario, stock disponible y punto de reorden"
         icon={Science}
       />
 
@@ -107,32 +113,41 @@ const IngredientsPage = () => {
               <TableCell>Categoría</TableCell>
               <TableCell>Unidad base</TableCell>
               <TableCell>Costo unitario</TableCell>
+              <TableCell>Stock</TableCell>
+              <TableCell>Reorden</TableCell>
+              <TableCell>Merma %</TableCell>
               <TableCell>Proveedor</TableCell>
               <TableCell>Estado</TableCell>
               <TableCell align="right">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {ingredients.map((ingredient) => (
-              <TableRow key={ingredient.id} hover onClick={() => handleEdit(ingredient)} sx={{ cursor: 'pointer' }}>
-                <TableCell>{ingredient.name}</TableCell>
-                <TableCell>{ingredient.category}</TableCell>
-                <TableCell>{ingredient.baseUnit}</TableCell>
-                <TableCell>{formatCurrency(ingredient.currentUnitCost)}</TableCell>
-                <TableCell>{ingredient.supplierName || '—'}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={ingredient.active ? 'Activo' : 'Inactivo'} color={ingredient.active ? 'success' : 'default'} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton color="error" onClick={(event) => { event.stopPropagation(); handleDelete(ingredient.id); }}>
-                    <Delete />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
+            {ingredients.map((ingredient) => {
+              const isLowStock = Number(ingredient.onHandQuantity) <= Number(ingredient.reorderPoint);
+              return (
+                <TableRow key={ingredient.id} hover onClick={() => handleEdit(ingredient)} sx={{ cursor: 'pointer' }}>
+                  <TableCell>{ingredient.name}</TableCell>
+                  <TableCell>{ingredient.category}</TableCell>
+                  <TableCell>{ingredient.baseUnit}</TableCell>
+                  <TableCell>{formatCurrency(ingredient.currentUnitCost)}</TableCell>
+                  <TableCell>{ingredient.onHandQuantity} {ingredient.baseUnit}</TableCell>
+                  <TableCell>{ingredient.reorderPoint} {ingredient.baseUnit}</TableCell>
+                  <TableCell>{ingredient.wastePercent}%</TableCell>
+                  <TableCell>{ingredient.supplierName || '—'}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={isLowStock ? 'Reponer' : ingredient.active ? 'Activo' : 'Inactivo'} color={isLowStock ? 'warning' : ingredient.active ? 'success' : 'default'} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <IconButton color="error" onClick={(event) => { event.stopPropagation(); handleDelete(ingredient.id); }}>
+                      <Delete />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {ingredients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={10} align="center">
                   No hay insumos registrados.
                 </TableCell>
               </TableRow>
@@ -159,6 +174,9 @@ const IngredientsPage = () => {
             options: UNIT_OPTIONS.map((unit) => ({ value: unit, label: unit })),
           },
           { type: 'text', key: 'currentUnitCost', label: 'Costo unitario actual', inputProps: { type: 'number', min: 0, step: '0.01' } },
+          { type: 'text', key: 'onHandQuantity', label: 'Stock disponible', inputProps: { type: 'number', min: 0, step: '0.01' } },
+          { type: 'text', key: 'reorderPoint', label: 'Punto de reorden', inputProps: { type: 'number', min: 0, step: '0.01' } },
+          { type: 'text', key: 'wastePercent', label: 'Merma %', inputProps: { type: 'number', min: 0, step: '0.01' } },
           { type: 'text', key: 'supplierName', label: 'Proveedor principal' },
           {
             type: 'select',

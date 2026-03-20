@@ -1,7 +1,3 @@
-/**
- * 📈 SalesDashboardPage – Dashboard de ventas y utilidad
- */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -20,7 +16,7 @@ import {
 } from '@mui/material';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, BarChart, Bar
+  PieChart, Pie, Cell, Legend, BarChart, Bar,
 } from 'recharts';
 import { BarChart as Chart } from '@mui/icons-material';
 import PageTitle from '../components/Titles/PageTitle';
@@ -28,10 +24,11 @@ import { getPaidOrders } from '../services/orderService';
 import { getProducts } from '../services/productService';
 import { getIngredients } from '../services/ingredientService';
 import { getRecipes } from '../services/recipeService';
-import { buildCostContext, computeProfitabilityFromOrders } from '../utils/costing';
+import { getEmployees, getWorkLogs } from '../services/worklogService';
+import { buildCostContext, computeProfitabilityFromOrders, getOrderTimestamp, getPaymentAppliedAmount } from '../utils/costing';
 import { formatCurrency } from '../utils/formatCurrency';
 
-const COLORS = ['#42a5f5', '#ffb74d', '#66bb6a', '#ba68c8', '#ef5350'];
+const COLORS = ['#42a5f5', '#ffb74d', '#66bb6a', '#ba68c8', '#ef5350', '#26a69a'];
 
 const SalesDashboardPage = () => {
   const theme = useTheme();
@@ -39,6 +36,8 @@ const SalesDashboardPage = () => {
   const [categories, setCategories] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [recipes, setRecipes] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [worklogs, setWorklogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [globalFilters, setGlobalFilters] = useState({ start: '', end: '' });
   const [dailyFilters, setDailyFilters] = useState({ start: '', end: '' });
@@ -47,44 +46,38 @@ const SalesDashboardPage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const [paidOrders, fetchedProducts, fetchedIngredients, fetchedRecipes] = await Promise.all([
+      const [paidOrders, fetchedProducts, fetchedIngredients, fetchedRecipes, fetchedEmployees, fetchedWorklogs] = await Promise.all([
         getPaidOrders(),
         getProducts(),
         getIngredients().catch(() => []),
         getRecipes().catch(() => []),
+        getEmployees().catch(() => []),
+        getWorkLogs().catch(() => []),
       ]);
       setOrders(paidOrders);
       setCategories(fetchedProducts);
       setIngredients(fetchedIngredients);
       setRecipes(fetchedRecipes);
+      setEmployees(fetchedEmployees);
+      setWorklogs(fetchedWorklogs);
       setIsLoading(false);
     };
 
     loadData();
   }, []);
 
-  const getOrderTimestamp = useCallback((order) => {
-    if (order?.timestamp?.seconds) {
-      return new Date(order.timestamp.seconds * 1000 + order.timestamp.nanoseconds / 1e6);
-    }
-    if (order?.createdAt) {
-      return new Date(order.createdAt);
-    }
-    return null;
-  }, []);
-
-  const applyDateRange = useCallback((data, filters) => {
+  const applyDateRange = useCallback((data, filters, getDate) => {
     if (!filters.start && !filters.end) return data;
     const start = filters.start ? new Date(filters.start) : null;
     const end = filters.end ? new Date(filters.end) : null;
-    return data.filter((order) => {
-      const ts = getOrderTimestamp(order);
+    return data.filter((item) => {
+      const ts = getDate(item);
       if (!ts) return false;
       if (start && ts < start) return false;
       if (end && ts > end) return false;
       return true;
     });
-  }, [getOrderTimestamp]);
+  }, []);
 
   const mergedFilters = useCallback((localFilters) => ({
     start: localFilters.start || globalFilters.start,
@@ -108,7 +101,7 @@ const SalesDashboardPage = () => {
       .map(([date, value]) => ({ date, total: value.total, dateValue: value.dateValue }))
       .sort((a, b) => a.dateValue - b.dateValue)
       .map(({ date, total }) => ({ date, total }));
-  }, [getOrderTimestamp]);
+  }, []);
 
   const computePayment = useCallback((data) => {
     const summary = {};
@@ -116,7 +109,7 @@ const SalesDashboardPage = () => {
       if (Array.isArray(order.paymentMethod)) {
         order.paymentMethod.forEach((payment) => {
           const method = payment.paymentMethod || 'Otro';
-          summary[method] = (summary[method] || 0) + payment.amount;
+          summary[method] = (summary[method] || 0) + getPaymentAppliedAmount(payment);
         });
       } else {
         const method = order.paymentMethod || 'Otro';
@@ -134,12 +127,13 @@ const SalesDashboardPage = () => {
       hourly[ts.getHours()] += order.total;
     });
     return hourly.map((value, hour) => ({ hour: `${hour}:00`, total: value }));
-  }, [getOrderTimestamp]);
+  }, []);
 
-  const globalFilteredOrders = useMemo(() => applyDateRange(orders, globalFilters), [applyDateRange, orders, globalFilters]);
-  const dailyOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(dailyFilters)), [applyDateRange, globalFilteredOrders, mergedFilters, dailyFilters]);
-  const paymentOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(paymentFilters)), [applyDateRange, globalFilteredOrders, mergedFilters, paymentFilters]);
-  const hourlyOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(hourlyFilters)), [applyDateRange, globalFilteredOrders, mergedFilters, hourlyFilters]);
+  const globalFilteredOrders = useMemo(() => applyDateRange(orders, globalFilters, getOrderTimestamp), [applyDateRange, orders, globalFilters]);
+  const dailyOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(dailyFilters), getOrderTimestamp), [applyDateRange, globalFilteredOrders, mergedFilters, dailyFilters]);
+  const paymentOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(paymentFilters), getOrderTimestamp), [applyDateRange, globalFilteredOrders, mergedFilters, paymentFilters]);
+  const hourlyOrders = useMemo(() => applyDateRange(globalFilteredOrders, mergedFilters(hourlyFilters), getOrderTimestamp), [applyDateRange, globalFilteredOrders, mergedFilters, hourlyFilters]);
+  const globalFilteredWorklogs = useMemo(() => applyDateRange(worklogs, globalFilters, (log) => new Date(log.startAt)), [applyDateRange, worklogs, globalFilters]);
 
   const dailyData = useMemo(() => computeDaily(dailyOrders), [computeDaily, dailyOrders]);
   const paymentData = useMemo(() => computePayment(paymentOrders), [computePayment, paymentOrders]);
@@ -156,12 +150,28 @@ const SalesDashboardPage = () => {
     return computeProfitabilityFromOrders(globalFilteredOrders, context);
   }, [ingredients, recipes, categories, globalFilteredOrders]);
 
+  const laborSummary = useMemo(() => {
+    const employeeMap = new Map(employees.map((employee) => [String(employee.id), employee]));
+    const total = globalFilteredWorklogs.reduce((sum, log) => {
+      const employee = employeeMap.get(String(log.employeeId));
+      const hourlyRate = Number(employee?.hourlyRate) || 0;
+      const burdenMultiplier = Number(employee?.burdenMultiplier) || 1;
+      return sum + ((Number(log.hours) || 0) * hourlyRate * burdenMultiplier);
+    }, 0);
+
+    return {
+      total,
+      percentageOfSales: summary.total > 0 ? (total / summary.total) * 100 : 0,
+    };
+  }, [employees, globalFilteredWorklogs, summary.total]);
+
   const kpis = [
     { label: 'Ventas', value: formatCurrency(summary.total), color: COLORS[0] },
     { label: 'Nº de Órdenes', value: summary.count, color: COLORS[1] },
     { label: 'Ticket promedio', value: formatCurrency(summary.average), color: COLORS[2] },
     { label: 'Costo estimado', value: formatCurrency(profitability.totals.cost), color: COLORS[3] },
-    { label: 'Utilidad estimada', value: formatCurrency(profitability.totals.profit), color: COLORS[4] },
+    { label: 'Labor estimada', value: formatCurrency(laborSummary.total), color: COLORS[4] },
+    { label: 'Prime cost', value: formatCurrency(profitability.totals.cost + laborSummary.total), color: COLORS[5] },
   ];
 
   if (isLoading) {
@@ -174,23 +184,9 @@ const SalesDashboardPage = () => {
 
   return (
     <Box>
-      <PageTitle
-        title="Dashboard de Ventas y Utilidad"
-        subtitle="Resumen comercial, costo estimado y rentabilidad por producto"
-        icon={Chart}
-      />
+      <PageTitle title="Dashboard de Ventas y Utilidad" subtitle="Resumen comercial, costo estimado, labor y prime cost" icon={Chart} />
 
-      <Box
-        sx={{
-          p: 3,
-          mb: 4,
-          borderRadius: 2,
-          backgroundColor: theme.palette.background.paper,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}
-      >
+      <Box sx={{ p: 3, mb: 4, borderRadius: 2, backgroundColor: theme.palette.background.paper, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Typography variant="subtitle1" fontWeight={600}>Filtros generales</Typography>
         <Box display="flex" gap={2} flexWrap="wrap">
           <TextField label="Desde" type="datetime-local" value={globalFilters.start} onChange={(event) => setGlobalFilters((prev) => ({ ...prev, start: event.target.value }))} InputLabelProps={{ shrink: true }} sx={{ minWidth: 240 }} />
@@ -201,25 +197,15 @@ const SalesDashboardPage = () => {
 
       <Box display="flex" gap={3} mb={4} flexWrap="wrap">
         {kpis.map((kpi) => (
-          <Box
-            key={kpi.label}
-            flex={1}
-            sx={{
-              p: 3,
-              borderLeft: `6px solid ${kpi.color}`,
-              borderRadius: 2,
-              backgroundColor: theme.palette.background.paper,
-              minWidth: 220,
-            }}
-          >
+          <Box key={kpi.label} flex={1} sx={{ p: 3, borderLeft: `6px solid ${kpi.color}`, borderRadius: 2, backgroundColor: theme.palette.background.paper, minWidth: 220 }}>
             <Typography variant="subtitle2" color="text.secondary">{kpi.label}</Typography>
             <Typography variant="h6" fontWeight={600}>{kpi.value}</Typography>
           </Box>
         ))}
       </Box>
 
-      <Alert severity="info" sx={{ mb: 3 }}>
-        La utilidad es estimada con la receta vigente y el costo unitario actual de insumos. Si un producto no tiene receta, su costo se toma como 0.
+      <Alert severity={profitability.totals.unknownRevenue > 0 ? 'warning' : 'info'} sx={{ mb: 3 }}>
+        La utilidad es estimada con la receta vigente y el costo unitario actual de insumos. Ingresos sin costo conocido: <strong>{formatCurrency(profitability.totals.unknownRevenue)}</strong>.
       </Alert>
 
       <Box display="flex" gap={3} mb={4} flexWrap="wrap">
@@ -298,12 +284,15 @@ const SalesDashboardPage = () => {
             <TableBody>
               {profitability.items.slice(0, 8).map((item) => (
                 <TableRow key={item.name}>
-                  <TableCell>{item.name}</TableCell>
+                  <TableCell>
+                    {item.name}
+                    {item.warnings?.length > 0 && <Typography variant="caption" color="warning.main" display="block">{item.warnings.join(' · ')}</Typography>}
+                  </TableCell>
                   <TableCell align="right">{item.quantity}</TableCell>
                   <TableCell align="right">{formatCurrency(item.revenue)}</TableCell>
                   <TableCell align="right">{formatCurrency(item.cost)}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.profit)}</TableCell>
-                  <TableCell align="right">{item.margin}%</TableCell>
+                  <TableCell align="right">{item.profit === null ? 'N/D' : formatCurrency(item.profit)}</TableCell>
+                  <TableCell align="right">{item.margin === null ? 'N/D' : `${item.margin}%`}</TableCell>
                 </TableRow>
               ))}
               {profitability.items.length === 0 && (
@@ -313,6 +302,10 @@ const SalesDashboardPage = () => {
               )}
             </TableBody>
           </Table>
+          <Box mt={2}>
+            <Typography variant="body2" color="text.secondary">Labor / ventas: {laborSummary.percentageOfSales.toFixed(1)}%</Typography>
+            <Typography variant="body2" color="text.secondary">Prime cost / ventas: {summary.total > 0 ? (((profitability.totals.cost + laborSummary.total) / summary.total) * 100).toFixed(1) : '0.0'}%</Typography>
+          </Box>
         </Paper>
       </Box>
     </Box>

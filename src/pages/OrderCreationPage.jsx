@@ -130,13 +130,13 @@ const OrderCreationPage = () => {
       if (existing) {
         return prev.map(p =>
           p.name === customName.trim()
-            ? { ...p, quantity: p.quantity + 1, price: priceNumber, notes: customNotes.trim() || p.notes || '' }
+            ? { ...p, quantity: p.quantity + 1, price: priceNumber, notes: customNotes.trim() || p.notes || '', custom: true }
             : p
         );
       }
       return [
         ...prev,
-        { name: customName.trim(), price: priceNumber, quantity: 1, notes: customNotes.trim() || '' }
+        { name: customName.trim(), price: priceNumber, quantity: 1, notes: customNotes.trim() || '', custom: true }
       ];
     });
 
@@ -154,7 +154,7 @@ const OrderCreationPage = () => {
           p.name === name ? { ...p, quantity: p.quantity + 1 } : p
         );
       }
-      return [...prev, { name, price, quantity: 1}];
+      return [...prev, { name, price, quantity: 1, custom: false }];
     });
 
     setSelectedProduct(name);
@@ -183,11 +183,12 @@ const OrderCreationPage = () => {
     if (isSaving) return;
     setIsSaving(true);
 
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    const orderedAt = new Date().toISOString();
 
     const order = {
       customerName: customerName.trim() || '',
-      timestamp: new Date(),
+      orderedAt,
+      timestamp: orderedAt,
       status: 'Por Hacer',
       items: saleItems,
       total: saleItems.reduce((sum, p) => sum + p.price * p.quantity, 0),

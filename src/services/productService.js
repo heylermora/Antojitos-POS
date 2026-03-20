@@ -1,53 +1,51 @@
 import { getDocs, collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getCategories } from './categoryService';
 
 export const getProducts = async () => {
   try {
-    console.log('[getProducts] Fetching products from Firestore...');
-    const snapshot = await getDocs(collection(db, 'products'));
+    const [snapshot, savedCategories] = await Promise.all([
+      getDocs(collection(db, 'products')),
+      getCategories().catch(() => []),
+    ]);
 
-    if (snapshot.empty) {
-      console.warn('[getProducts] No se encontraron productos en Firestore.');
-      throw new Error('No se encontraron productos en la base de datos.');
-    }
+    const categoriesMap = Object.fromEntries(
+      savedCategories.map((category) => [category.id, { id: category.id, name: category.name, products: [] }])
+    );
 
-    const categoriesMap = {};
-
-    snapshot.forEach(doc => {
-      const data = doc.data();
-
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
       const categoryId = data.categoryId || 'sin_categoria';
-      const categoryName = data.categoryName || 'Sin categoría';
+      const categoryName = data.categoryName || categoriesMap[categoryId]?.name || 'Sin categoría';
 
       if (!categoriesMap[categoryId]) {
         categoriesMap[categoryId] = {
           id: categoryId,
           name: categoryName,
-          products: []
+          products: [],
         };
       }
 
       categoriesMap[categoryId].products.push({
-        id: doc.id,                    // usamos el id del documento
+        id: docSnap.id,
         name: data.name,
         price: Number(data.price) || 0,
         description: data.description || '',
-        categoryName
+        categoryName,
+        categoryId,
       });
     });
 
     const categories = Object.values(categoriesMap);
 
-    const alreadyHasOther = categories.some(c => c.id === 'other');
-    if (!alreadyHasOther) {
+    if (!categories.some((category) => category.id === 'other')) {
       categories.push({
         id: 'other',
         name: 'Otro',
-        products: []
+        products: [],
       });
     }
 
-    console.log('[getProducts] Categories parsed:', categories);
     return categories;
   } catch (err) {
     console.error('[getProducts] Error:', err);
@@ -57,30 +55,39 @@ export const getProducts = async () => {
 
 export const createProduct = async (product) => {
   try {
-    const docRef = doc(db, 'products', `product_${product.id}`);
-    await setDoc(docRef, product);
-    console.log('[createProduct] Product created:', product);
+    const productId = product.id || `product_${Date.now()}`;
+    const docRef = doc(db, 'products', productId);
+    await setDoc(docRef, {
+      ...product,
+      id: productId,
+      price: Number(product.price) || 0,
+    });
+    return productId;
   } catch (err) {
     console.error('[createProduct] Error:', err);
+    throw err;
   }
 };
 
 export const updateProduct = async (id, updates) => {
   try {
-    const docRef = doc(db, 'products', `product_${id}`);
-    await updateDoc(docRef, updates);
-    console.log('[updateProduct] Product updated:', id, updates);
+    const docRef = doc(db, 'products', id);
+    await updateDoc(docRef, {
+      ...updates,
+      price: Number(updates.price) || 0,
+    });
   } catch (err) {
     console.error('[updateProduct] Error:', err);
+    throw err;
   }
 };
 
 export const deleteProduct = async (id) => {
   try {
-    const docRef = doc(db, 'products', `product_${id}`);
+    const docRef = doc(db, 'products', id);
     await deleteDoc(docRef);
-    console.log('[deleteProduct] Product deleted:', id);
   } catch (err) {
     console.error('[deleteProduct] Error:', err);
+    throw err;
   }
 };

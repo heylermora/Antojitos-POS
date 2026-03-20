@@ -33,6 +33,7 @@ const emptyLine = {
 };
 
 const emptyForm = {
+  supplierId: '',
   supplierName: '',
   invoiceNumber: '',
   invoiceDate: new Date().toISOString().slice(0, 10),
@@ -49,6 +50,8 @@ const PurchaseInvoicesPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const suppliersMap = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers]);
 
   const loadData = async () => {
     setLoading(true);
@@ -101,6 +104,15 @@ const PurchaseInvoicesPage = () => {
   const addLine = () => setForm((prev) => ({ ...prev, lines: [...prev.lines, { ...emptyLine }] }));
   const removeLine = (index) => setForm((prev) => ({ ...prev, lines: prev.lines.filter((_, lineIndex) => lineIndex !== index) }));
 
+  const handleSupplierChange = (supplierId) => {
+    const supplier = suppliersMap.get(supplierId);
+    setForm((prev) => ({
+      ...prev,
+      supplierId,
+      supplierName: supplier?.name || '',
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     await createPurchaseInvoice({
@@ -127,7 +139,7 @@ const PurchaseInvoicesPage = () => {
     <Box>
       <PageTitle
         title="Facturas de compra"
-        subtitle="Registra compras de insumos seleccionando únicamente el nombre del proveedor"
+        subtitle="Registra compras con trazabilidad de proveedor y actualización de costo/stock"
         icon={ReceiptLong}
       />
 
@@ -139,13 +151,13 @@ const PurchaseInvoicesPage = () => {
               <TextField
                 select
                 label="Proveedor"
-                value={form.supplierName}
-                onChange={(e) => setForm((prev) => ({ ...prev, supplierName: e.target.value }))}
+                value={form.supplierId}
+                onChange={(e) => handleSupplierChange(e.target.value)}
                 fullWidth
-                helperText={suppliers.length === 0 ? 'Primero registra proveedores en la página de Proveedores.' : 'La factura solo guarda el nombre del proveedor seleccionado.'}
+                helperText={suppliers.length === 0 ? 'Primero registra proveedores en la página de Proveedores.' : 'Se guarda el proveedor por ID y además un snapshot del nombre en la factura.'}
               >
                 {suppliers.map((supplier) => (
-                  <MenuItem key={supplier.id} value={supplier.name}>{supplier.name}</MenuItem>
+                  <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
                 ))}
               </TextField>
               <TextField label="Factura" value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} fullWidth />
@@ -169,13 +181,7 @@ const PurchaseInvoicesPage = () => {
                   {computedLines.map((line, index) => (
                     <TableRow key={`line-${index}`}>
                       <TableCell sx={{ minWidth: 220 }}>
-                        <TextField
-                          select
-                          fullWidth
-                          size="small"
-                          value={line.ingredientId}
-                          onChange={(e) => updateLine(index, 'ingredientId', e.target.value)}
-                        >
+                        <TextField select fullWidth size="small" value={line.ingredientId} onChange={(e) => updateLine(index, 'ingredientId', e.target.value)}>
                           {ingredients.map((ingredient) => (
                             <MenuItem key={ingredient.id} value={ingredient.id}>{ingredient.name}</MenuItem>
                           ))}
@@ -227,7 +233,7 @@ const PurchaseInvoicesPage = () => {
                 saving ||
                 suppliers.length === 0 ||
                 computedLines.some((line) => !line.ingredientId || !line.baseQuantity) ||
-                !form.supplierName.trim()
+                !form.supplierId.trim()
               }
             >
               Guardar factura

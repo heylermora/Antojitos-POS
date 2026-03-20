@@ -5,8 +5,9 @@ import {
 } from '@mui/material';
 import KitchenOrder from './KitchenOrder';
 import ConfirmModal from './Modals/ConfirmModal';
+import { getOrderTimestamp } from '../utils/costing';
 
-const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymentModal, onDelete}) => {
+const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, onDelete }) => {
   const [confirmData, setConfirmData] = useState(null);
   const [confirmDel, setConfirmDel] = useState({ open: false, order: null });
 
@@ -15,7 +16,6 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
   const handleStatusChange = (order, newStatus) => {
     if (newStatus === 'Pagada') {
       onOpenPayment(order);
-      openPaymentModal();
       return;
     }
 
@@ -61,7 +61,7 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
                 justifyContent: 'center',
                 textAlign: 'center',
                 fontStyle: 'italic',
-                color: 'text.secondary'
+                color: 'text.secondary',
               }}
             >
               No hay órdenes en estado "{status}"
@@ -69,10 +69,11 @@ const OrderColumn = ({ orders, status, onStatusChange, onOpenPayment, openPaymen
           </Grid>
         ) : (
           orders
-            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+            .sort((a, b) => (getOrderTimestamp(a, ['orderedAt', 'timestamp', 'createdAt'])?.getTime() || 0) - (getOrderTimestamp(b, ['orderedAt', 'timestamp', 'createdAt'])?.getTime() || 0))
             .map((order) => (
               <KitchenOrder
-                date={order.timestamp}
+                key={order.id}
+                date={order.orderedAt || order.timestamp || order.paidAt || order.createdAt}
                 items={order.items}
                 currentStatus={order.status}
                 customerName={order.customerName}

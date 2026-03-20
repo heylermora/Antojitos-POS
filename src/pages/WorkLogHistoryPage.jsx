@@ -57,7 +57,7 @@ export default function WorkLogHistoryPage() {
 
   // Modales
   const [empModalOpen, setEmpModalOpen] = useState(false);
-  const [empForm, setEmpForm] = useState({ id: null, name: '', phone: '' });
+  const [empForm, setEmpForm] = useState({ id: null, name: '', phone: '', hourlyRate: '', burdenMultiplier: 1 });
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logForm, setLogForm] = useState({ employeeId: '', date: '', start: '', end: '' });
   const [editingLogId, setEditingLogId] = useState(null);
@@ -152,12 +152,13 @@ export default function WorkLogHistoryPage() {
   }, [historyByDay]);
 
   // --- Acciones Empleado ---
-  const openCreateEmp = () => { setEmpForm({ id: null, name: '', phone: '' }); setEmpModalOpen(true); };
-  const openEditEmp = (e) => { setEmpForm({ id: e.id, name: e.name || '', phone: e.phone || '' }); setEmpModalOpen(true); };
+  const openCreateEmp = () => { setEmpForm({ id: null, name: '', phone: '', hourlyRate: '', burdenMultiplier: 1 }); setEmpModalOpen(true); };
+  const openEditEmp = (e) => { setEmpForm({ id: e.id, name: e.name || '', phone: e.phone || '', hourlyRate: e.hourlyRate || 0, burdenMultiplier: e.burdenMultiplier || 1 }); setEmpModalOpen(true); };
   const saveEmp = async () => {
+    const payload = { name: empForm.name, phone: empForm.phone, hourlyRate: Number(empForm.hourlyRate) || 0, burdenMultiplier: Number(empForm.burdenMultiplier) || 1 };
     empForm.id
-      ? await updateEmployee(empForm.id, { name: empForm.name, phone: empForm.phone })
-      : await createEmployee({ name: empForm.name, phone: empForm.phone });
+      ? await updateEmployee(empForm.id, payload)
+      : await createEmployee(payload);
 
     setEmpModalOpen(false);
     setEmployees(await getEmployees().catch(() => employees));
@@ -531,10 +532,12 @@ export default function WorkLogHistoryPage() {
         fields={[
           { type: 'text', key: 'name', label: 'Nombre' },
           { type: 'text', key: 'phone', label: 'Teléfono', inputProps: { inputMode: 'tel' } },
+          { type: 'text', key: 'hourlyRate', label: 'Salario por hora', inputProps: { type: 'number', min: 0, step: '0.01' } },
+          { type: 'text', key: 'burdenMultiplier', label: 'Factor cargas', inputProps: { type: 'number', min: 1, step: '0.01' } },
         ]}
         formData={empForm}
         setFormData={setEmpForm}
-        onClose={() => { setEmpModalOpen(false); setEmpForm({ id: null, name: '', phone: '' }); }}
+        onClose={() => { setEmpModalOpen(false); setEmpForm({ id: null, name: '', phone: '', hourlyRate: '', burdenMultiplier: 1 }); }}
         onSubmit={saveEmp}
         submitDisabled={!empForm.name?.trim()}
         maxWidth="sm"

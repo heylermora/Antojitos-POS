@@ -207,6 +207,8 @@ export const getEmployees = async () => {
         id: data.id || d.id,
         name: data.name || '',
         phone: data.phone || '',
+        hourlyRate: Number(data.hourlyRate) || 0,
+        burdenMultiplier: Number(data.burdenMultiplier) || 1,
       });
     });
     return list;
@@ -224,6 +226,8 @@ export const createEmployee = async (payload) => {
       id,
       name: payload.name || '',
       phone: payload.phone || '',
+      hourlyRate: Number(payload.hourlyRate) || 0,
+      burdenMultiplier: Number(payload.burdenMultiplier) || 1,
     };
     await setDoc(ref, data);
     return data;
@@ -240,6 +244,8 @@ export const updateEmployee = async (id, payload) => {
     const patch = {};
     if ('name' in payload) patch.name = payload.name;
     if ('phone' in payload) patch.phone = payload.phone;
+    if ('hourlyRate' in payload) patch.hourlyRate = Number(payload.hourlyRate) || 0;
+    if ('burdenMultiplier' in payload) patch.burdenMultiplier = Number(payload.burdenMultiplier) || 1;
     if (Object.keys(patch).length === 0) return { id: empId };
     await updateDoc(ref, patch);
     return { id: empId, ...patch };

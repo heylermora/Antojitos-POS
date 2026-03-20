@@ -1,6 +1,6 @@
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { applyIngredientCostUpdate, clearIngredientCostUpdate } from './ingredientService';
+import { applyIngredientCostUpdate, applyInventoryAdjustment, clearIngredientCostUpdate } from './ingredientService';
 
 const PURCHASE_INVOICES_COLLECTION = 'purchaseInvoices';
 
@@ -8,6 +8,7 @@ const normalizeInvoice = (docSnap) => {
   const data = docSnap.data() || {};
   return {
     id: docSnap.id,
+    supplierId: data.supplierId || '',
     supplierName: data.supplierName || '',
     invoiceNumber: data.invoiceNumber || '',
     invoiceDate: data.invoiceDate || '',
@@ -83,6 +84,7 @@ export const createPurchaseInvoice = async (invoice) => {
   }));
 
   const payload = {
+    supplierId: invoice.supplierId || '',
     supplierName: invoice.supplierName || '',
     invoiceNumber: invoice.invoiceNumber || '',
     invoiceDate: invoice.invoiceDate || '',
@@ -104,6 +106,7 @@ export const createPurchaseInvoice = async (invoice) => {
         supplierName: payload.supplierName,
         unitCost: line.unitCost,
         purchasedAt: payload.invoiceDate,
+        deltaQuantity: line.baseQuantity,
       })
     )
   );
@@ -123,5 +126,13 @@ export const deletePurchaseInvoice = async (id) => {
   const affectedIngredientIds = [...new Set((invoice.lines || []).map((line) => line.ingredientId).filter(Boolean))];
 
   await deleteDoc(invoiceRef);
+  await Promise.all(
+    (invoice.lines || []).map((line) =>
+      applyInventoryAdjustment({
+        ingredientId: line.ingredientId,
+        deltaQuantity: -(Number(line.baseQuantity) || 0),
+      })
+    )
+  );
   await recomputeIngredientCosts(affectedIngredientIds);
 };

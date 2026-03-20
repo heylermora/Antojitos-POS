@@ -1,17 +1,3 @@
-/**
- * 📦 ProductManagerPage – Gestión de productos y categorías
- *
- * Página principal para visualizar, crear, editar y eliminar productos agrupados por categoría.
- * Utiliza MUI, acordeones para categorías y un modal reutilizable para productos.
- *
- * Funcionalidades:
- * - Listado por categoría con expansión
- * - Modal para agregar/editar productos
- * - Diálogo para agregar nuevas categorías
- * - CRUD con servicios externos (productService)
- * - Visualización de costo, utilidad y margen por producto
- */
-
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -36,6 +22,7 @@ import { ExpandMore, Edit, Delete, Add, Inventory } from '@mui/icons-material';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService';
 import { getIngredients } from '../services/ingredientService';
 import { getRecipes } from '../services/recipeService';
+import { saveCategory } from '../services/categoryService';
 import { buildCostContext, enrichCategoriesWithCosting } from '../utils/costing';
 import { formatCurrency } from '../utils/formatCurrency';
 import FormModal from '../components/Modals/FormModal';
@@ -45,7 +32,7 @@ const ProductManagerPage = () => {
   const [categories, setCategories] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', categoryName: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', categoryId: '', categoryName: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState({ categoryId: null, product: null });
 
@@ -77,13 +64,13 @@ const ProductManagerPage = () => {
   }, [categories, ingredients, recipes]);
 
   const handleAddProduct = (category) => {
-    setNewProduct({ name: '', price: '', categoryName: category.name });
+    setNewProduct({ name: '', price: '', categoryName: category.name, categoryId: category.id });
     setEditing({ categoryId: category.id, product: null });
     setModalOpen(true);
   };
 
   const handleEditProduct = (product, categoryId) => {
-    setNewProduct(product);
+    setNewProduct({ ...product, categoryId, categoryName: product.categoryName || categories.find((category) => category.id === categoryId)?.name || '' });
     setEditing({ categoryId, product });
     setModalOpen(true);
   };
@@ -94,39 +81,31 @@ const ProductManagerPage = () => {
   };
 
   const handleSaveProduct = async () => {
+    const selectedCategory = categories.find((category) => category.id === (newProduct.categoryId || editing.categoryId));
+    const payload = {
+      ...newProduct,
+      price: Number(newProduct.price) || 0,
+      categoryId: newProduct.categoryId || editing.categoryId,
+      categoryName: selectedCategory?.name || newProduct.categoryName || 'Sin categoría',
+    };
+
     if (editing.product) {
-      await updateProduct(newProduct.id, {
-        ...newProduct,
-        price: Number(newProduct.price) || 0,
-      });
+      await updateProduct(newProduct.id, payload);
     } else {
-      const id = Date.now().toString();
-      const productWithId = {
-        ...newProduct,
-        id,
-        price: Number(newProduct.price) || 0,
-        categoryId: editing.categoryId,
-      };
-      await createProduct(productWithId);
+      const id = `product_${Date.now()}`;
+      await createProduct({ ...payload, id });
     }
 
     await loadData();
     setModalOpen(false);
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (newCategoryName.trim() === '') return;
-
-    const categoryId = `cat-${newCategoryName.trim().toLowerCase().replace(/\s+/g, '-')}`;
-    const newCat = {
-      id: categoryId,
-      name: newCategoryName.trim(),
-      products: [],
-    };
-
-    setCategories((prev) => [...prev, newCat]);
+    await saveCategory({ name: newCategoryName.trim() });
     setNewCategoryName('');
     setCategoryModalOpen(false);
+    await loadData();
   };
 
   if (isLoading) {
@@ -141,7 +120,7 @@ const ProductManagerPage = () => {
     <Box sx={{ p: 3, maxWidth: '1100px', mx: 'auto' }}>
       <PageTitle
         title="Gestión de Productos"
-        subtitle="Administra el menú, precios y disponibilidad de productos con su costo y utilidad actual"
+        subtitle="Administra el menú, precios y categorías persistentes con su costo y utilidad actual"
         icon={Inventory}
       />
 
@@ -236,18 +215,14 @@ const ProductManagerPage = () => {
           { type: 'text', key: 'price', label: 'Precio', inputProps: { type: 'number', min: 0, step: '0.01' } },
           {
             type: 'select',
-            key: 'categoryName',
+            key: 'categoryId',
             label: 'Categoría',
-            options: categories.map((c) => ({ value: c.name, label: c.name })),
+            options: categories.map((category) => ({ value: category.id, label: category.name })),
           },
         ]}
       />
 
-      <Fab
-        color="secondary"
-        sx={{ position: 'fixed', bottom: 24, right: 24 }}
-        onClick={() => setCategoryModalOpen(true)}
-      >
+      <Fab color="secondary" sx={{ position: 'fixed', bottom: 24, right: 24 }} onClick={() => setCategoryModalOpen(true)}>
         <Add />
       </Fab>
 
@@ -259,9 +234,7 @@ const ProductManagerPage = () => {
         setFormData={({ name }) => setNewCategoryName(name)}
         onSubmit={handleAddCategory}
         submitLabel="Agregar"
-        fields={[
-          { type: 'text', key: 'name', label: 'Nombre de la categoría' },
-        ]}
+        fields={[{ type: 'text', key: 'name', label: 'Nombre de la categoría' }]}
         maxWidth="xs"
       />
     </Box>

@@ -9,7 +9,7 @@ const mockServerTimestamp = jest.fn(() => 'server-timestamp');
 
 const mockApplyIngredientCostUpdate = jest.fn();
 const mockClearIngredientCostUpdate = jest.fn();
-
+const mockApplyInventoryAdjustment = jest.fn();
 const mockAddDoc = jest.fn();
 
 jest.mock('firebase/firestore', () => ({
@@ -31,6 +31,7 @@ jest.mock('../lib/firebase', () => ({
 jest.mock('./ingredientService', () => ({
   applyIngredientCostUpdate: (...args) => mockApplyIngredientCostUpdate(...args),
   clearIngredientCostUpdate: (...args) => mockClearIngredientCostUpdate(...args),
+  applyInventoryAdjustment: (...args) => mockApplyInventoryAdjustment(...args),
 }));
 
 import { createPurchaseInvoice, deletePurchaseInvoice } from './purchaseInvoiceService';
@@ -53,7 +54,7 @@ describe('deletePurchaseInvoice', () => {
         supplierName: 'Proveedor nuevo',
         invoiceDate: '2026-03-10',
         lines: [
-          { ingredientId: 'ingredient-1', unitCost: 2.5 },
+          { ingredientId: 'ingredient-1', unitCost: 2.5, baseQuantity: 2000 },
         ],
       }),
     });
@@ -74,6 +75,10 @@ describe('deletePurchaseInvoice', () => {
     await deletePurchaseInvoice('invoice-new');
 
     expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
+    expect(mockApplyInventoryAdjustment).toHaveBeenCalledWith({
+      ingredientId: 'ingredient-1',
+      deltaQuantity: -2000,
+    });
     expect(mockApplyIngredientCostUpdate).toHaveBeenCalledWith({
       ingredientId: 'ingredient-1',
       supplierName: 'Proveedor anterior',
@@ -91,25 +96,25 @@ describe('deletePurchaseInvoice', () => {
         supplierName: 'Proveedor único',
         invoiceDate: '2026-03-10',
         lines: [
-          { ingredientId: 'ingredient-2', unitCost: 3.2 },
+          { ingredientId: 'ingredient-2', unitCost: 3.2, baseQuantity: 1000 },
         ],
       }),
     });
 
-    mockGetDocs.mockResolvedValue({
-      docs: [],
-    });
+    mockGetDocs.mockResolvedValue({ docs: [] });
 
     await deletePurchaseInvoice('invoice-only');
 
+    expect(mockApplyInventoryAdjustment).toHaveBeenCalledWith({
+      ingredientId: 'ingredient-2',
+      deltaQuantity: -1000,
+    });
     expect(mockClearIngredientCostUpdate).toHaveBeenCalledWith('ingredient-2');
     expect(mockApplyIngredientCostUpdate).not.toHaveBeenCalled();
   });
 
   it('does nothing else when the invoice no longer exists', async () => {
-    mockGetDoc.mockResolvedValue({
-      exists: () => false,
-    });
+    mockGetDoc.mockResolvedValue({ exists: () => false });
 
     await deletePurchaseInvoice('missing-invoice');
 
@@ -117,19 +122,20 @@ describe('deletePurchaseInvoice', () => {
     expect(mockGetDocs).not.toHaveBeenCalled();
     expect(mockApplyIngredientCostUpdate).not.toHaveBeenCalled();
     expect(mockClearIngredientCostUpdate).not.toHaveBeenCalled();
+    expect(mockApplyInventoryAdjustment).not.toHaveBeenCalled();
   });
 });
-
 
 describe('createPurchaseInvoice', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('stores only the selected supplier name on the invoice', async () => {
+  it('stores supplier id plus historical supplier name and updates stock/cost', async () => {
     mockAddDoc.mockResolvedValue({ id: 'invoice-created' });
 
     const result = await createPurchaseInvoice({
+      supplierId: 'supplier-1',
       supplierName: 'Distribuidora Central',
       invoiceNumber: 'FC-101',
       invoiceDate: '2026-03-15',
@@ -151,19 +157,17 @@ describe('createPurchaseInvoice', () => {
     });
 
     expect(result).toBe('invoice-created');
-    expect(mockAddDoc).toHaveBeenCalledTimes(1);
     expect(mockAddDoc.mock.calls[0][1]).toMatchObject({
+      supplierId: 'supplier-1',
       supplierName: 'Distribuidora Central',
       invoiceNumber: 'FC-101',
     });
-    expect(mockAddDoc.mock.calls[0][1].supplierContactName).toBeUndefined();
-    expect(mockAddDoc.mock.calls[0][1].supplierPhone).toBeUndefined();
-    expect(mockAddDoc.mock.calls[0][1].supplierEmail).toBeUndefined();
     expect(mockApplyIngredientCostUpdate).toHaveBeenCalledWith({
       ingredientId: 'ingredient-1',
       supplierName: 'Distribuidora Central',
       unitCost: 0.05,
       purchasedAt: '2026-03-15',
+      deltaQuantity: 2000,
     });
   });
 });
