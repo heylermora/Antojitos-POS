@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   login,
   hydrateAuthOnBoot,
   setCurrentRole,
-  setCurrentOperatorName,
+  setCurrentOperatorContext,
 } from '../services/authService';
+import { getEmployees } from '../services/worklogService';
 import {
   Alert,
   Box,
+  CircularProgress,
   Typography,
   TextField,
   Button,
@@ -20,10 +22,34 @@ import {
 import { Visibility, VisibilityOff, LocalDining } from '@mui/icons-material';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [form, setForm] = useState({ email: '', password: '', role: 'collaborator', operatorName: '' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    role: 'collaborator',
+    employeeId: '',
+    adminName: '',
+  });
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadEmployees = async () => {
+      setLoadingEmployees(true);
+      try {
+        const data = await getEmployees();
+        setEmployees(data || []);
+      } catch {
+        setEmployees([]);
+      } finally {
+        setLoadingEmployees(false);
+      }
+    };
+
+    loadEmployees();
+  }, []);
 
   const mapFirebaseError = (code) => {
     switch (code) {
@@ -38,7 +64,34 @@ const LoginPage = ({ onLoginSuccess }) => {
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const resolveOperatorContext = () => {
+    if (form.role === 'admin') {
+      const adminName = form.adminName.trim();
+      if (!adminName) {
+        throw new Error('Indica el nombre del administrador para la auditoría automática.');
+      }
+
+      return {
+        name: adminName,
+        employeeId: '',
+        source: 'manual',
+      };
+    }
+
+    const employee = employees.find((item) => String(item.id) === String(form.employeeId));
+    if (!employee) {
+      throw new Error('Selecciona un colaborador del registro de horas antes de ingresar.');
+    }
+
+    return {
+      name: employee.name || employee.id,
+      employeeId: employee.id,
+      source: 'employee',
+    };
   };
 
   const handleSubmit = async (e) => {
@@ -47,15 +100,17 @@ const LoginPage = ({ onLoginSuccess }) => {
 
     const email = form.email?.trim();
     const password = form.password ?? '';
-    const operatorName = form.operatorName?.trim();
 
     if (!email || !password) {
       setError('Por favor ingresa correo y contraseña.');
       return;
     }
 
-    if (!operatorName) {
-      setError('Indica el nombre de la persona que va a usar el sistema para la auditoría automática.');
+    let operatorContext;
+    try {
+      operatorContext = resolveOperatorContext();
+    } catch (validationError) {
+      setError(validationError.message);
       return;
     }
 
@@ -63,10 +118,12 @@ const LoginPage = ({ onLoginSuccess }) => {
     try {
       const { user } = await login({ email, password });
       const role = setCurrentRole(form.role);
-      const operator = setCurrentOperatorName(operatorName);
+      const operator = setCurrentOperatorContext(operatorContext);
       await hydrateAuthOnBoot();
 
-      if (typeof onLoginSuccess === 'function') onLoginSuccess({ ...user, role, operatorName: operator });
+      if (typeof onLoginSuccess === 'function') {
+        onLoginSuccess({ ...user, role, operatorName: operator.name, operatorEmployeeId: operator.employeeId });
+      }
     } catch (err) {
       const msg = mapFirebaseError(err?.code) || err?.message || 'Error de autenticación.';
       setError(msg);
@@ -74,6 +131,8 @@ const LoginPage = ({ onLoginSuccess }) => {
       setLoading(false);
     }
   };
+
+  const isCollaborator = form.role === 'collaborator';
 
   return (
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #d4972b, #904120)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -97,19 +156,40 @@ const LoginPage = ({ onLoginSuccess }) => {
               label="Perfil de acceso"
               value={form.role}
               onChange={handleChange}
-              helperText="Usa el mismo correo, pero elige si entras como colaborador o cocinero."
+              helperText="Colaborador se elige desde el registro de horas; Administrador escribe su nombre."
             >
               <MenuItem value="collaborator">Colaborador</MenuItem>
-              <MenuItem value="cook">Cocinero</MenuItem>
+              <MenuItem value="admin">Administrador</MenuItem>
             </TextField>
-            <TextField
-              fullWidth
-              name="operatorName"
-              label={form.role === 'cook' ? 'Nombre del cocinero' : 'Nombre del colaborador'}
-              value={form.operatorName}
-              onChange={handleChange}
-              helperText="Se usará automáticamente para auditar todas las acciones de esta sesión."
-            />
+
+            {isCollaborator ? (
+              <TextField
+                fullWidth
+                select
+                name="employeeId"
+                label="Colaborador"
+                value={form.employeeId}
+                onChange={handleChange}
+                disabled={loadingEmployees}
+                helperText={loadingEmployees ? 'Cargando colaboradores desde el registro de horas...' : 'Esta lista sale automáticamente del registro de horas.'}
+              >
+                {employees.map((employee) => (
+                  <MenuItem key={employee.id} value={String(employee.id)}>{employee.name}</MenuItem>
+                ))}
+              </TextField>
+            ) : (
+              <TextField
+                fullWidth
+                name="adminName"
+                label="Nombre del administrador"
+                value={form.adminName}
+                onChange={handleChange}
+                helperText="Se usará automáticamente para auditar todas las acciones de esta sesión."
+              />
+            )}
+
+            {loadingEmployees && isCollaborator && <CircularProgress size={22} sx={{ alignSelf: 'center' }} />}
+
             <TextField
               fullWidth
               name="email"
@@ -139,7 +219,7 @@ const LoginPage = ({ onLoginSuccess }) => {
               type="submit"
               fullWidth
               variant="contained"
-              disabled={loading}
+              disabled={loading || (isCollaborator && loadingEmployees)}
               sx={{ mt: 1, backgroundColor: '#904120', '&:hover': { backgroundColor: '#703119' } }}
             >
               {loading ? 'Ingresando...' : 'Iniciar sesión'}

@@ -61,8 +61,8 @@ const menuSections = [
     description: 'Accesos rápidos para atención y cocina.',
     icon: <PointOfSale fontSize="small" />,
     items: [
-      { label: 'Nueva Comanda', icon: <RestaurantMenu />, index: 0, roles: ['collaborator'] },
-      { label: 'Comandas', icon: <ListAlt />, index: 1, roles: ['collaborator', 'cook'] },
+      { label: 'Nueva Comanda', icon: <RestaurantMenu />, index: 0, roles: ['collaborator', 'admin'] },
+      { label: 'Comandas', icon: <ListAlt />, index: 1, roles: ['collaborator', 'admin'] },
     ],
   },
   {
@@ -71,10 +71,10 @@ const menuSections = [
     description: 'Históricos, métricas y control del personal.',
     icon: <Insights fontSize="small" />,
     items: [
-      { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2, roles: ['collaborator'] },
-      { label: 'Dashboard', icon: <BarChart />, index: 4, roles: ['collaborator'] },
-      { label: 'Registro de horas', icon: <WorkHistory />, index: 5, roles: ['collaborator'] },
-      { label: 'Auditoría', icon: <HistoryEdu />, index: 10, roles: ['collaborator'] },
+      { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2, roles: ['admin'] },
+      { label: 'Dashboard', icon: <BarChart />, index: 4, roles: ['admin'] },
+      { label: 'Registro de horas', icon: <WorkHistory />, index: 5, roles: ['admin'] },
+      { label: 'Auditoría', icon: <HistoryEdu />, index: 10, roles: ['admin'] },
     ],
   },
   {
@@ -83,11 +83,11 @@ const menuSections = [
     description: 'Productos, recetas e insumos del negocio.',
     icon: <Storefront fontSize="small" />,
     items: [
-      { label: 'Gestión de Productos', icon: <Inventory2 />, index: 3, roles: ['collaborator'] },
-      { label: 'Insumos', icon: <Science />, index: 6, roles: ['collaborator'] },
-      { label: 'Recetas', icon: <MenuBook />, index: 7, roles: ['collaborator'] },
-      { label: 'Proveedores', icon: <LocalShipping />, index: 8, roles: ['collaborator'] },
-      { label: 'Facturas de compra', icon: <ShoppingCart />, index: 9, roles: ['collaborator'] },
+      { label: 'Gestión de Productos', icon: <Inventory2 />, index: 3, roles: ['admin'] },
+      { label: 'Insumos', icon: <Science />, index: 6, roles: ['admin'] },
+      { label: 'Recetas', icon: <MenuBook />, index: 7, roles: ['admin'] },
+      { label: 'Proveedores', icon: <LocalShipping />, index: 8, roles: ['admin'] },
+      { label: 'Facturas de compra', icon: <ShoppingCart />, index: 9, roles: ['admin'] },
     ],
   },
 ];
@@ -96,11 +96,11 @@ const getMenuSectionsForRole = (role) =>
   menuSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => (item.roles || ['collaborator']).includes(role)),
+      items: section.items.filter((item) => (item.roles || ['admin']).includes(role)),
     }))
     .filter((section) => section.items.length > 0);
 
-const getRoleLabel = (role) => (role === 'cook' ? 'Cocinero' : 'Colaborador');
+const getRoleLabel = (role) => (role === 'admin' ? 'Administrador' : 'Colaborador');
 
 const App = () => {
   const getInitialViewIndex = () => {

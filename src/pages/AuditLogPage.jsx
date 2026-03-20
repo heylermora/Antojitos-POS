@@ -59,7 +59,7 @@ const AuditLogPage = () => {
     <Box>
       <PageTitle
         title="Auditoría de acciones"
-        subtitle="Registro automático de quién hizo cada acción operativa y administrativa en el sistema"
+        subtitle="Registro automático de acciones hechas por colaboradores del registro de horas y administradores del sistema"
         icon={HistoryEdu}
       />
 
@@ -68,7 +68,7 @@ const AuditLogPage = () => {
           <TableHead>
             <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
               <TableCell>Fecha</TableCell>
-              <TableCell>Colaborador</TableCell>
+              <TableCell>Responsable</TableCell>
               <TableCell>Rol</TableCell>
               <TableCell>Acción</TableCell>
               <TableCell>Módulo</TableCell>
