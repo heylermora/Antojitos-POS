@@ -1,3 +1,4 @@
+const mockRecordAuditEvent = jest.fn();
 const mockAddDoc = jest.fn();
 const mockUpdateDoc = jest.fn();
 const mockCollection = jest.fn(() => 'orders-collection');
@@ -22,6 +23,10 @@ jest.mock('firebase/firestore', () => ({
 
 jest.mock('../lib/firebase', () => ({
   db: 'db-instance',
+}));
+
+jest.mock('./auditService', () => ({
+  recordAuditEvent: (...args) => mockRecordAuditEvent(...args),
 }));
 
 import { getOrderDisplayNumber, getOrderEventDate, saveOrder, updateOrderStatus } from './orderService';
@@ -56,6 +61,7 @@ describe('saveOrder', () => {
   it('creates createdAt/updatedAt and patches a ticket number after addDoc', async () => {
     mockAddDoc.mockResolvedValue({ id: 'abc12345' });
     mockUpdateDoc.mockResolvedValue();
+    mockRecordAuditEvent.mockResolvedValue('audit-1');
 
     const result = await saveOrder({
       customerName: 'Ana',
@@ -84,6 +90,11 @@ describe('saveOrder', () => {
       id: 'abc12345',
       orderNumber: 'TKT-' + new Date(mockAddDoc.mock.calls[0][1].createdAt).toISOString().slice(0, 10).replace(/-/g, '') + '-ABC1',
     });
+    expect(mockRecordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'create',
+      entityType: 'order',
+      entityId: 'abc12345',
+    }));
   });
 });
 
@@ -94,6 +105,7 @@ describe('updateOrderStatus', () => {
 
   it('does not overwrite createdAt and stamps paidAt only for paid orders', async () => {
     mockUpdateDoc.mockResolvedValue();
+    mockRecordAuditEvent.mockResolvedValue('audit-2');
 
     await updateOrderStatus('order-1', 'Pagada', [{ paymentMethod: 'Efectivo', amount: 1000 }]);
 
@@ -105,10 +117,16 @@ describe('updateOrderStatus', () => {
       paidAt: expect.any(String),
     }));
     expect(mockUpdateDoc.mock.calls[0][1].createdAt).toBeUndefined();
+    expect(mockRecordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'status_change',
+      entityType: 'order',
+      entityId: 'order-1',
+    }));
   });
 
   it('stores payment summary metadata when provided as a structured payload', async () => {
     mockUpdateDoc.mockResolvedValue();
+    mockRecordAuditEvent.mockResolvedValue('audit-3');
 
     await updateOrderStatus('order-2', 'Pagada', {
       payments: [{ paymentMethod: 'Sinpe', amount: 1500, reference: 'ABC-123' }],

@@ -1,8 +1,24 @@
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { applyIngredientCostUpdate, clearIngredientCostUpdate } from './ingredientService';
+import { recordAuditEvent } from './auditService';
 
 const PURCHASE_INVOICES_COLLECTION = 'purchaseInvoices';
+
+const normalizeInvoiceLine = (line = {}) => ({
+  ingredientId: line.ingredientId || '',
+  ingredientName: line.ingredientName || '',
+  quantityPurchased: Number(line.quantityPurchased) || 0,
+  purchaseUnit: line.purchaseUnit || '',
+  baseQuantity: Number(line.baseQuantity) || 0,
+  lineCost: Number(line.lineCost) || 0,
+  unitCost: Number(line.unitCost) || 0,
+  taxCode: line.taxCode || 'tax-exempt',
+  taxLabel: line.taxLabel || 'Exento',
+  taxRate: Number(line.taxRate) || 0,
+  taxAmount: Number(line.taxAmount) || 0,
+  lineTotal: Number(line.lineTotal) || 0,
+});
 
 const normalizeInvoice = (docSnap) => {
   const data = docSnap.data() || {};
@@ -16,7 +32,7 @@ const normalizeInvoice = (docSnap) => {
     tax: Number(data.tax) || 0,
     total: Number(data.total) || 0,
     notes: data.notes || '',
-    lines: Array.isArray(data.lines) ? data.lines : [],
+    lines: Array.isArray(data.lines) ? data.lines.map(normalizeInvoiceLine) : [],
     createdAt: data.createdAt || null,
   };
 };
@@ -48,22 +64,26 @@ const recomputeIngredientCosts = async (ingredientIds) => {
 
   await Promise.all(
     ingredientIds.map(async (ingredientId) => {
-      const latestMatch = invoices
+      const matches = invoices
         .flatMap((invoice) =>
           (invoice.lines || [])
             .filter((line) => line.ingredientId === ingredientId)
             .map((line) => ({ invoice, line }))
         )
-        .sort((left, right) => compareInvoices(left.invoice, right.invoice))[0];
+        .sort((left, right) => compareInvoices(left.invoice, right.invoice));
 
-      if (!latestMatch) {
+      if (!matches.length) {
         await clearIngredientCostUpdate(ingredientId);
         return;
       }
 
+      const latestMatch = matches[0];
+      const supplierNames = [...new Set(matches.map((match) => match.invoice.supplierName).filter(Boolean))];
+
       await applyIngredientCostUpdate({
         ingredientId,
         supplierName: latestMatch.invoice.supplierName,
+        supplierNames,
         unitCost: latestMatch.line.unitCost,
         purchasedAt: latestMatch.invoice.invoiceDate,
       });
@@ -72,15 +92,7 @@ const recomputeIngredientCosts = async (ingredientIds) => {
 };
 
 export const createPurchaseInvoice = async (invoice) => {
-  const cleanLines = (invoice.lines || []).map((line) => ({
-    ingredientId: line.ingredientId || '',
-    ingredientName: line.ingredientName || '',
-    quantityPurchased: Number(line.quantityPurchased) || 0,
-    purchaseUnit: line.purchaseUnit || '',
-    baseQuantity: Number(line.baseQuantity) || 0,
-    lineCost: Number(line.lineCost) || 0,
-    unitCost: Number(line.unitCost) || 0,
-  }));
+  const cleanLines = (invoice.lines || []).map(normalizeInvoiceLine);
 
   const payload = {
     supplierName: invoice.supplierName || '',
@@ -96,17 +108,16 @@ export const createPurchaseInvoice = async (invoice) => {
   };
 
   const docRef = await addDoc(collection(db, PURCHASE_INVOICES_COLLECTION), payload);
-
-  await Promise.all(
-    cleanLines.map((line) =>
-      applyIngredientCostUpdate({
-        ingredientId: line.ingredientId,
-        supplierName: payload.supplierName,
-        unitCost: line.unitCost,
-        purchasedAt: payload.invoiceDate,
-      })
-    )
-  );
+  const affectedIngredientIds = [...new Set(cleanLines.map((line) => line.ingredientId).filter(Boolean))];
+  await recomputeIngredientCosts(affectedIngredientIds);
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'purchase_invoice',
+    entityId: docRef.id,
+    entityLabel: payload.invoiceNumber || docRef.id,
+    summary: `Registró la factura ${payload.invoiceNumber || docRef.id} del proveedor ${payload.supplierName || 'sin proveedor'}.`,
+    details: { supplierName: payload.supplierName, total: payload.total, lineCount: cleanLines.length },
+  });
 
   return docRef.id;
 };
@@ -124,4 +135,12 @@ export const deletePurchaseInvoice = async (id) => {
 
   await deleteDoc(invoiceRef);
   await recomputeIngredientCosts(affectedIngredientIds);
+  await recordAuditEvent({
+    action: 'delete',
+    entityType: 'purchase_invoice',
+    entityId: id,
+    entityLabel: invoice.invoiceNumber || id,
+    summary: `Eliminó la factura ${invoice.invoiceNumber || id}.`,
+    details: { supplierName: invoice.supplierName || '', total: invoice.total || 0 },
+  });
 };

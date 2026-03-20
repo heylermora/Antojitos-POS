@@ -1,7 +1,3 @@
-/**
- * 🧭 App – Navegación principal del sistema POS
- */
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Container,
@@ -19,6 +15,7 @@ import {
   ListItemIcon,
   Divider,
   Chip,
+  Stack,
 } from '@mui/material';
 import {
   RestaurantMenu,
@@ -38,6 +35,7 @@ import {
   PointOfSale,
   Insights,
   Storefront,
+  HistoryEdu,
 } from '@mui/icons-material';
 
 import OrderCreationPage from './pages/OrderCreationPage';
@@ -51,6 +49,7 @@ import IngredientsPage from './pages/IngredientsPage';
 import RecipesPage from './pages/RecipesPage';
 import PurchaseInvoicesPage from './pages/PurchaseInvoicesPage';
 import SuppliersPage from './pages/SuppliersPage';
+import AuditLogPage from './pages/AuditLogPage';
 import OfflineBanner from './components/Banners/OfflineBanner';
 
 import * as authService from './services/authService';
@@ -62,8 +61,8 @@ const menuSections = [
     description: 'Accesos rápidos para atención y cocina.',
     icon: <PointOfSale fontSize="small" />,
     items: [
-      { label: 'Nueva Comanda', icon: <RestaurantMenu />, index: 0 },
-      { label: 'Comandas', icon: <ListAlt />, index: 1 },
+      { label: 'Nueva Comanda', icon: <RestaurantMenu />, index: 0, roles: ['collaborator', 'admin'] },
+      { label: 'Comandas', icon: <ListAlt />, index: 1, roles: ['collaborator', 'admin'] },
     ],
   },
   {
@@ -72,9 +71,10 @@ const menuSections = [
     description: 'Históricos, métricas y control del personal.',
     icon: <Insights fontSize="small" />,
     items: [
-      { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2 },
-      { label: 'Dashboard', icon: <BarChart />, index: 4 },
-      { label: 'Registro de horas', icon: <WorkHistory />, index: 5 },
+      { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2, roles: ['admin'] },
+      { label: 'Dashboard', icon: <BarChart />, index: 4, roles: ['admin'] },
+      { label: 'Registro de horas', icon: <WorkHistory />, index: 5, roles: ['admin'] },
+      { label: 'Auditoría', icon: <HistoryEdu />, index: 10, roles: ['admin'] },
     ],
   },
   {
@@ -83,14 +83,24 @@ const menuSections = [
     description: 'Productos, recetas e insumos del negocio.',
     icon: <Storefront fontSize="small" />,
     items: [
-      { label: 'Gestión de Productos', icon: <Inventory2 />, index: 3 },
-      { label: 'Insumos', icon: <Science />, index: 6 },
-      { label: 'Recetas', icon: <MenuBook />, index: 7 },
-      { label: 'Proveedores', icon: <LocalShipping />, index: 8 },
-      { label: 'Facturas de compra', icon: <ShoppingCart />, index: 9 },
+      { label: 'Gestión de Productos', icon: <Inventory2 />, index: 3, roles: ['admin'] },
+      { label: 'Insumos', icon: <Science />, index: 6, roles: ['admin'] },
+      { label: 'Recetas', icon: <MenuBook />, index: 7, roles: ['admin'] },
+      { label: 'Proveedores', icon: <LocalShipping />, index: 8, roles: ['admin'] },
+      { label: 'Facturas de compra', icon: <ShoppingCart />, index: 9, roles: ['admin'] },
     ],
   },
 ];
+
+const getMenuSectionsForRole = (role) =>
+  menuSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => (item.roles || ['admin']).includes(role)),
+    }))
+    .filter((section) => section.items.length > 0);
+
+const getRoleLabel = (role) => (role === 'admin' ? 'Administrador' : 'Colaborador');
 
 const App = () => {
   const getInitialViewIndex = () => {
@@ -101,6 +111,8 @@ const App = () => {
   const [viewIndex, setViewIndex] = useState(getInitialViewIndex);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
+  const [currentRole, setCurrentRole] = useState(authService.getCurrentRole());
+  const [currentOperatorName, setCurrentOperatorName] = useState(authService.getCurrentOperatorName());
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [expandedSections, setExpandedSections] = useState(() =>
     menuSections.reduce((accumulator, section) => {
@@ -109,9 +121,21 @@ const App = () => {
     }, {})
   );
 
+  const availableMenuSections = useMemo(() => getMenuSectionsForRole(currentRole), [currentRole]);
+  const allowedViewIndexes = useMemo(
+    () => availableMenuSections.flatMap((section) => section.items.map((item) => item.index)),
+    [availableMenuSections]
+  );
+
   useEffect(() => {
     localStorage.setItem('app.viewIndex', viewIndex.toString());
   }, [viewIndex]);
+
+  useEffect(() => {
+    if (!allowedViewIndexes.includes(viewIndex) && allowedViewIndexes.length > 0) {
+      setViewIndex(allowedViewIndexes[0]);
+    }
+  }, [allowedViewIndexes, viewIndex]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -129,23 +153,32 @@ const App = () => {
   useEffect(() => {
     const unsubscribe = authService.subscribeAuth((user) => {
       setIsAuthenticated(!!user);
+      if (user) {
+        setCurrentRole(authService.getCurrentRole());
+        setCurrentOperatorName(authService.getCurrentOperatorName());
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
   const activeMenuContext = useMemo(() => {
-    for (const section of menuSections) {
+    for (const section of availableMenuSections) {
       const activeItem = section.items.find((item) => item.index === viewIndex);
       if (activeItem) {
         return { section, item: activeItem };
       }
     }
 
-    return { section: menuSections[0], item: menuSections[0].items[0] };
-  }, [viewIndex]);
+    return {
+      section: availableMenuSections[0] || menuSections[0],
+      item: availableMenuSections[0]?.items?.[0] || menuSections[0].items[0],
+    };
+  }, [availableMenuSections, viewIndex]);
 
   useEffect(() => {
+    if (!activeMenuContext?.section?.id) return;
+
     setExpandedSections((currentSections) => ({
       ...currentSections,
       [activeMenuContext.section.id]: true,
@@ -155,6 +188,8 @@ const App = () => {
   const handleLogout = useCallback(async () => {
     await authService.logout();
     setIsAuthenticated(false);
+    setCurrentRole('collaborator');
+    setCurrentOperatorName('');
   }, []);
 
   const handleViewChange = (nextViewIndex) => {
@@ -181,6 +216,7 @@ const App = () => {
       case 7: return <RecipesPage />;
       case 8: return <SuppliersPage />;
       case 9: return <PurchaseInvoicesPage />;
+      case 10: return <AuditLogPage />;
       default: return <Typography>Vista no encontrada.</Typography>;
     }
   };
@@ -189,7 +225,11 @@ const App = () => {
     return (
       <Box sx={{ backgroundColor: '#fffaf5', minHeight: '100vh' }}>
         <OfflineBanner isOnline={isOnline} />
-        <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
+        <LoginPage onLoginSuccess={() => {
+          setCurrentRole(authService.getCurrentRole());
+          setCurrentOperatorName(authService.getCurrentOperatorName());
+          setIsAuthenticated(true);
+        }} />
       </Box>
     );
   }
@@ -211,9 +251,15 @@ const App = () => {
               </Typography>
             </Box>
           </Box>
-          <IconButton color="inherit" onClick={handleLogout}>
-            <LogoutIcon />
-          </IconButton>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {currentOperatorName && (
+              <Chip size="small" label={`Usuario: ${currentOperatorName}`} sx={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'white' }} />
+            )}
+            <Chip size="small" label={`Rol: ${getRoleLabel(currentRole)}`} sx={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'white' }} />
+            <IconButton color="inherit" onClick={handleLogout}>
+              <LogoutIcon />
+            </IconButton>
+          </Stack>
         </Toolbar>
       </AppBar>
 
@@ -234,10 +280,14 @@ const App = () => {
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
               Organiza el trabajo por áreas para encontrar cada módulo más rápido.
             </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+              {currentOperatorName && <Chip size="small" label={`Usuario: ${currentOperatorName}`} />}
+              <Chip size="small" label={`Acceso actual: ${getRoleLabel(currentRole)}`} />
+            </Stack>
           </Box>
 
           <List sx={{ px: 1.5, py: 1.5 }}>
-            {menuSections.map((section, sectionIndex) => {
+            {availableMenuSections.map((section, sectionIndex) => {
               const isExpanded = expandedSections[section.id];
               const isActiveSection = activeMenuContext.section.id === section.id;
 
@@ -259,54 +309,37 @@ const App = () => {
                       <ListItemText
                         primary={section.label}
                         secondary={section.description}
-                        primaryTypographyProps={{ fontWeight: 700, color: '#3e2723' }}
-                        secondaryTypographyProps={{ sx: { mt: 0.25, lineHeight: 1.35 } }}
+                        primaryTypographyProps={{ fontWeight: 600, color: '#4e342e' }}
+                        secondaryTypographyProps={{ fontSize: '0.78rem' }}
                       />
                       {isExpanded ? <ExpandLess /> : <ExpandMore />}
                     </ListItemButton>
                   </ListItem>
 
                   <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                    <List component="div" disablePadding sx={{ pl: 1.5 }}>
+                    <List disablePadding sx={{ pl: 1.5 }}>
                       {section.items.map((item) => {
-                        const isSelected = item.index === viewIndex;
-
+                        const isActive = item.index === viewIndex;
                         return (
-                          <ListItem key={item.index} disablePadding sx={{ mb: 0.5 }}>
+                          <ListItem key={item.index} disablePadding>
                             <ListItemButton
-                              selected={isSelected}
                               onClick={() => handleViewChange(item.index)}
                               sx={{
                                 borderRadius: 2,
-                                py: 1,
-                                '&.Mui-selected': {
-                                  backgroundColor: 'rgba(212, 151, 43, 0.18)',
-                                  color: '#8a5200',
-                                },
-                                '&.Mui-selected:hover': {
-                                  backgroundColor: 'rgba(212, 151, 43, 0.24)',
-                                },
+                                pl: 2,
+                                backgroundColor: isActive ? 'rgba(144, 65, 32, 0.1)' : 'transparent',
                               }}
                             >
-                              <ListItemIcon sx={{ minWidth: 38, color: isSelected ? '#b36d00' : '#8d6e63' }}>
+                              <ListItemIcon sx={{ minWidth: 38, color: isActive ? '#904120' : '#8d6e63' }}>
                                 {item.icon}
                               </ListItemIcon>
                               <ListItemText
                                 primary={item.label}
-                                primaryTypographyProps={{ fontWeight: isSelected ? 700 : 500 }}
+                                primaryTypographyProps={{
+                                  fontWeight: isActive ? 700 : 500,
+                                  color: isActive ? '#904120' : '#5d4037',
+                                }}
                               />
-                              {isSelected && (
-                                <Chip
-                                  label="Actual"
-                                  size="small"
-                                  sx={{
-                                    height: 24,
-                                    backgroundColor: 'rgba(179, 109, 0, 0.12)',
-                                    color: '#8a5200',
-                                    fontWeight: 700,
-                                  }}
-                                />
-                              )}
                             </ListItemButton>
                           </ListItem>
                         );
@@ -314,7 +347,7 @@ const App = () => {
                     </List>
                   </Collapse>
 
-                  {sectionIndex < menuSections.length - 1 && <Divider sx={{ mt: 1.5 }} />}
+                  {sectionIndex < availableMenuSections.length - 1 && <Divider sx={{ mt: 1.5 }} />}
                 </Box>
               );
             })}
@@ -322,7 +355,7 @@ const App = () => {
         </Box>
       </Drawer>
 
-      <Container sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 3 }}>
         {renderCurrentView()}
       </Container>
     </Box>

@@ -1,17 +1,3 @@
-/**
- * 📦 ProductManagerPage – Gestión de productos y categorías
- *
- * Página principal para visualizar, crear, editar y eliminar productos agrupados por categoría.
- * Utiliza MUI, acordeones para categorías y un modal reutilizable para productos.
- *
- * Funcionalidades:
- * - Listado por categoría con expansión
- * - Modal para agregar/editar productos
- * - Diálogo para agregar nuevas categorías
- * - CRUD con servicios externos (productService)
- * - Visualización de costo, utilidad y margen por producto
- */
-
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -33,7 +19,13 @@ import {
   Stack,
 } from '@mui/material';
 import { ExpandMore, Edit, Delete, Add, Inventory } from '@mui/icons-material';
-import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService';
+import {
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  createProductCategory,
+} from '../services/productService';
 import { getIngredients } from '../services/ingredientService';
 import { getRecipes } from '../services/recipeService';
 import { buildCostContext, enrichCategoriesWithCosting } from '../utils/costing';
@@ -41,14 +33,15 @@ import { formatCurrency } from '../utils/formatCurrency';
 import FormModal from '../components/Modals/FormModal';
 import PageTitle from '../components/Titles/PageTitle';
 
+const emptyProduct = { id: '', name: '', price: '', description: '', categoryId: '', categoryName: '', active: true };
+
 const ProductManagerPage = () => {
   const [categories, setCategories] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', categoryName: '' });
+  const [productForm, setProductForm] = useState(emptyProduct);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState({ categoryId: null, product: null });
-
+  const [editingProductId, setEditingProductId] = useState('');
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -71,20 +64,39 @@ const ProductManagerPage = () => {
     loadData();
   }, []);
 
+  const categoryOptions = useMemo(
+    () => categories.map((category) => ({ value: category.id, label: category.name })),
+    [categories]
+  );
+
   const enrichedCategories = useMemo(() => {
     const context = buildCostContext({ ingredients, recipes, categories });
     return enrichCategoriesWithCosting(categories, context);
   }, [categories, ingredients, recipes]);
 
+  const resetProductModal = () => {
+    setProductForm(emptyProduct);
+    setEditingProductId('');
+    setModalOpen(false);
+  };
+
   const handleAddProduct = (category) => {
-    setNewProduct({ name: '', price: '', categoryName: category.name });
-    setEditing({ categoryId: category.id, product: null });
+    setProductForm({
+      ...emptyProduct,
+      categoryId: category.id,
+      categoryName: category.name,
+    });
+    setEditingProductId('');
     setModalOpen(true);
   };
 
-  const handleEditProduct = (product, categoryId) => {
-    setNewProduct(product);
-    setEditing({ categoryId, product });
+  const handleEditProduct = (product) => {
+    setProductForm({
+      ...emptyProduct,
+      ...product,
+      price: product.price ?? '',
+    });
+    setEditingProductId(product.id);
     setModalOpen(true);
   };
 
@@ -94,39 +106,33 @@ const ProductManagerPage = () => {
   };
 
   const handleSaveProduct = async () => {
-    if (editing.product) {
-      await updateProduct(newProduct.id, {
-        ...newProduct,
-        price: Number(newProduct.price) || 0,
-      });
+    const category = categories.find((item) => item.id === productForm.categoryId);
+    const payload = {
+      ...productForm,
+      name: productForm.name.trim(),
+      price: Number(productForm.price) || 0,
+      categoryId: category?.id || productForm.categoryId,
+      categoryName: category?.name || productForm.categoryName || 'Sin categoría',
+      active: String(productForm.active) !== 'false',
+    };
+
+    if (editingProductId) {
+      await updateProduct(editingProductId, payload);
     } else {
-      const id = Date.now().toString();
-      const productWithId = {
-        ...newProduct,
-        id,
-        price: Number(newProduct.price) || 0,
-        categoryId: editing.categoryId,
-      };
-      await createProduct(productWithId);
+      await createProduct(payload);
     }
 
     await loadData();
-    setModalOpen(false);
+    resetProductModal();
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (newCategoryName.trim() === '') return;
 
-    const categoryId = `cat-${newCategoryName.trim().toLowerCase().replace(/\s+/g, '-')}`;
-    const newCat = {
-      id: categoryId,
-      name: newCategoryName.trim(),
-      products: [],
-    };
-
-    setCategories((prev) => [...prev, newCat]);
+    await createProductCategory(newCategoryName.trim());
     setNewCategoryName('');
     setCategoryModalOpen(false);
+    await loadData();
   };
 
   if (isLoading) {
@@ -141,7 +147,7 @@ const ProductManagerPage = () => {
     <Box sx={{ p: 3, maxWidth: '1100px', mx: 'auto' }}>
       <PageTitle
         title="Gestión de Productos"
-        subtitle="Administra el menú, precios y disponibilidad de productos con su costo y utilidad actual"
+        subtitle="Administra el menú con un CRUD persistente para categorías y productos, manteniendo el costeo actualizado"
         icon={Inventory}
       />
 
@@ -173,10 +179,12 @@ const ProductManagerPage = () => {
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                     <TableCell>Nombre</TableCell>
+                    <TableCell>Descripción</TableCell>
                     <TableCell>Precio</TableCell>
                     <TableCell>Costo</TableCell>
                     <TableCell>Utilidad</TableCell>
                     <TableCell>Margen</TableCell>
+                    <TableCell>Estado</TableCell>
                     <TableCell>Estado receta</TableCell>
                     <TableCell align="right">Acciones</TableCell>
                   </TableRow>
@@ -194,10 +202,14 @@ const ProductManagerPage = () => {
                           )}
                         </Stack>
                       </TableCell>
+                      <TableCell>{prod.description || '—'}</TableCell>
                       <TableCell>{formatCurrency(prod.price)}</TableCell>
                       <TableCell>{formatCurrency(prod.costCurrent)}</TableCell>
                       <TableCell>{formatCurrency(prod.profitCurrent)}</TableCell>
                       <TableCell>{prod.marginCurrent}%</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={prod.active !== false ? 'Activo' : 'Inactivo'} color={prod.active !== false ? 'success' : 'default'} />
+                      </TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -206,14 +218,14 @@ const ProductManagerPage = () => {
                         />
                       </TableCell>
                       <TableCell align="right">
-                        <IconButton color="primary" onClick={() => handleEditProduct(prod, category.id)}><Edit /></IconButton>
+                        <IconButton color="primary" onClick={() => handleEditProduct(prod)}><Edit /></IconButton>
                         <IconButton color="error" onClick={() => handleDeleteProduct(prod.id)}><Delete /></IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
                   {category.products.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} align="center">No hay productos en esta categoría</TableCell>
+                      <TableCell colSpan={9} align="center">No hay productos en esta categoría</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -225,20 +237,31 @@ const ProductManagerPage = () => {
 
       <FormModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Agregar / Editar Producto"
-        formData={newProduct}
-        setFormData={setNewProduct}
+        onClose={resetProductModal}
+        title={editingProductId ? 'Editar producto' : 'Nuevo producto'}
+        formData={productForm}
+        setFormData={setProductForm}
         onSubmit={handleSaveProduct}
         submitLabel="Guardar"
+        submitDisabled={!productForm.name?.trim() || !productForm.categoryId || Number(productForm.price) <= 0}
         fields={[
           { type: 'text', key: 'name', label: 'Nombre' },
+          { type: 'text', key: 'description', label: 'Descripción', multiline: true },
           { type: 'text', key: 'price', label: 'Precio', inputProps: { type: 'number', min: 0, step: '0.01' } },
           {
             type: 'select',
-            key: 'categoryName',
+            key: 'categoryId',
             label: 'Categoría',
-            options: categories.map((c) => ({ value: c.name, label: c.name })),
+            options: categoryOptions,
+          },
+          {
+            type: 'select',
+            key: 'active',
+            label: 'Estado',
+            options: [
+              { value: true, label: 'Activo' },
+              { value: false, label: 'Inactivo' },
+            ],
           },
         ]}
       />
@@ -259,6 +282,7 @@ const ProductManagerPage = () => {
         setFormData={({ name }) => setNewCategoryName(name)}
         onSubmit={handleAddCategory}
         submitLabel="Agregar"
+        submitDisabled={!newCategoryName.trim()}
         fields={[
           { type: 'text', key: 'name', label: 'Nombre de la categoría' },
         ]}

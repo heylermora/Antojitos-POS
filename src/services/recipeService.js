@@ -1,5 +1,6 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { recordAuditEvent } from './auditService';
 
 const RECIPES_COLLECTION = 'recipes';
 
@@ -34,7 +35,7 @@ export const getRecipes = async () => {
 };
 
 export const createRecipe = async (recipe) => {
-  await addDoc(collection(db, RECIPES_COLLECTION), {
+  const docRef = await addDoc(collection(db, RECIPES_COLLECTION), {
     ...recipe,
     yieldQuantity: Number(recipe.yieldQuantity) || 1,
     lines: (recipe.lines || []).map((line) => ({
@@ -43,6 +44,14 @@ export const createRecipe = async (recipe) => {
     })),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'recipe',
+    entityId: docRef.id,
+    entityLabel: recipe.name || docRef.id,
+    summary: `Creó la receta ${recipe.name || docRef.id}.`,
+    details: { type: recipe.type || 'subrecipe', lineCount: Array.isArray(recipe.lines) ? recipe.lines.length : 0 },
   });
 };
 
@@ -55,6 +64,14 @@ export const updateRecipe = async (id, recipe) => {
       quantity: Number(line.quantity) || 0,
     })),
     updatedAt: serverTimestamp(),
+  });
+  await recordAuditEvent({
+    action: 'update',
+    entityType: 'recipe',
+    entityId: id,
+    entityLabel: recipe.name || id,
+    summary: `Actualizó la receta ${recipe.name || id}.`,
+    details: { type: recipe.type || 'subrecipe', lineCount: Array.isArray(recipe.lines) ? recipe.lines.length : 0 },
   });
 };
 
@@ -70,4 +87,11 @@ export const saveRecipe = async (recipe) => {
 
 export const deleteRecipe = async (id) => {
   await deleteDoc(doc(db, RECIPES_COLLECTION, id));
+  await recordAuditEvent({
+    action: 'delete',
+    entityType: 'recipe',
+    entityId: id,
+    entityLabel: id,
+    summary: `Eliminó la receta ${id}.`,
+  });
 };
