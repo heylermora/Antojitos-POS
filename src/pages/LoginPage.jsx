@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { login, hydrateAuthOnBoot, setCurrentRole } from '../services/authService';
+import {
+  login,
+  hydrateAuthOnBoot,
+  setCurrentRole,
+  setCurrentOperatorName,
+} from '../services/authService';
 import {
   Alert,
   Box,
@@ -15,7 +20,7 @@ import {
 import { Visibility, VisibilityOff, LocalDining } from '@mui/icons-material';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [form, setForm] = useState({ email: '', password: '', role: 'collaborator' });
+  const [form, setForm] = useState({ email: '', password: '', role: 'collaborator', operatorName: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,8 +47,15 @@ const LoginPage = ({ onLoginSuccess }) => {
 
     const email = form.email?.trim();
     const password = form.password ?? '';
+    const operatorName = form.operatorName?.trim();
+
     if (!email || !password) {
       setError('Por favor ingresa correo y contraseña.');
+      return;
+    }
+
+    if (!operatorName) {
+      setError('Indica el nombre de la persona que va a usar el sistema para la auditoría automática.');
       return;
     }
 
@@ -51,9 +63,10 @@ const LoginPage = ({ onLoginSuccess }) => {
     try {
       const { user } = await login({ email, password });
       const role = setCurrentRole(form.role);
+      const operator = setCurrentOperatorName(operatorName);
       await hydrateAuthOnBoot();
 
-      if (typeof onLoginSuccess === 'function') onLoginSuccess({ ...user, role });
+      if (typeof onLoginSuccess === 'function') onLoginSuccess({ ...user, role, operatorName: operator });
     } catch (err) {
       const msg = mapFirebaseError(err?.code) || err?.message || 'Error de autenticación.';
       setError(msg);
@@ -89,6 +102,14 @@ const LoginPage = ({ onLoginSuccess }) => {
               <MenuItem value="collaborator">Colaborador</MenuItem>
               <MenuItem value="cook">Cocinero</MenuItem>
             </TextField>
+            <TextField
+              fullWidth
+              name="operatorName"
+              label={form.role === 'cook' ? 'Nombre del cocinero' : 'Nombre del colaborador'}
+              value={form.operatorName}
+              onChange={handleChange}
+              helperText="Se usará automáticamente para auditar todas las acciones de esta sesión."
+            />
             <TextField
               fullWidth
               name="email"

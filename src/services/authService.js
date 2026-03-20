@@ -18,6 +18,7 @@ import { auth } from '../lib/firebase';
 const STORAGE_KEY = 'app.auth.user';
 
 const ROLE_KEY = 'app.auth.role';
+const OPERATOR_NAME_KEY = 'app.auth.operatorName';
 const DEFAULT_ROLE = 'collaborator';
 
 // 🔹 Config de sesión máxima
@@ -116,6 +117,7 @@ export async function logout() {
   store.clear();
   clearSessionExpiration(); // 🔹 limpiar expiración
   localStorage.removeItem(ROLE_KEY);
+  localStorage.removeItem(OPERATOR_NAME_KEY);
 }
 
 /** Usuario actual (lite) desde memoria o localStorage */
@@ -196,4 +198,30 @@ export function setCurrentRole(role) {
 
 export function getCurrentRole() {
   return localStorage.getItem(ROLE_KEY) || DEFAULT_ROLE;
+}
+
+
+export function setCurrentOperatorName(name) {
+  const cleanName = String(name || '').trim();
+  localStorage.setItem(OPERATOR_NAME_KEY, cleanName);
+  return cleanName;
+}
+
+export function getCurrentOperatorName() {
+  return localStorage.getItem(OPERATOR_NAME_KEY) || '';
+}
+
+export function getAuditActorProfile() {
+  const user = getCurrentUser();
+  const role = getCurrentRole();
+  const operatorName = getCurrentOperatorName();
+
+  return {
+    uid: user?.uid || '',
+    email: user?.email || '',
+    displayName: user?.displayName || '',
+    operatorName,
+    role,
+    roleLabel: role === 'cook' ? 'Cocinero' : 'Colaborador',
+  };
 }

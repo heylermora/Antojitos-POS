@@ -1,5 +1,6 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { recordAuditEvent } from './auditService';
 
 const INGREDIENTS_COLLECTION = 'ingredients';
 
@@ -71,11 +72,28 @@ export const getIngredients = async () => {
 };
 
 export const createIngredient = async (ingredient) => {
-  await addDoc(collection(db, INGREDIENTS_COLLECTION), buildIngredientPayload(ingredient, { includeCreateTimestamps: true }));
+  const docRef = await addDoc(collection(db, INGREDIENTS_COLLECTION), buildIngredientPayload(ingredient, { includeCreateTimestamps: true }));
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'ingredient',
+    entityId: docRef.id,
+    entityLabel: ingredient.name || docRef.id,
+    summary: `Creó el insumo ${ingredient.name || docRef.id}.`,
+    details: { categories: ingredient.categories || [], baseUnit: ingredient.baseUnit || '' },
+  });
+  return docRef.id;
 };
 
 export const updateIngredient = async (id, ingredient) => {
   await updateDoc(doc(db, INGREDIENTS_COLLECTION, id), buildIngredientPayload(ingredient));
+  await recordAuditEvent({
+    action: 'update',
+    entityType: 'ingredient',
+    entityId: id,
+    entityLabel: ingredient.name || id,
+    summary: `Actualizó el insumo ${ingredient.name || id}.`,
+    details: { categories: ingredient.categories || [], active: ingredient.active !== false },
+  });
 };
 
 export const saveIngredient = async (ingredient) => {
@@ -91,6 +109,13 @@ export const saveIngredient = async (ingredient) => {
 
 export const deleteIngredient = async (id) => {
   await deleteDoc(doc(db, INGREDIENTS_COLLECTION, id));
+  await recordAuditEvent({
+    action: 'delete',
+    entityType: 'ingredient',
+    entityId: id,
+    entityLabel: id,
+    summary: `Eliminó el insumo ${id}.`,
+  });
 };
 
 export const applyIngredientCostUpdate = async ({ ingredientId, supplierName, supplierNames = [], unitCost, purchasedAt }) => {

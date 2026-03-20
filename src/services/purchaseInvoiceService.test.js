@@ -1,3 +1,4 @@
+const mockRecordAuditEvent = jest.fn();
 const mockGetDoc = jest.fn();
 const mockGetDocs = jest.fn();
 const mockDeleteDoc = jest.fn();
@@ -31,6 +32,10 @@ jest.mock('../lib/firebase', () => ({
 jest.mock('./ingredientService', () => ({
   applyIngredientCostUpdate: (...args) => mockApplyIngredientCostUpdate(...args),
   clearIngredientCostUpdate: (...args) => mockClearIngredientCostUpdate(...args),
+}));
+
+jest.mock('./auditService', () => ({
+  recordAuditEvent: (...args) => mockRecordAuditEvent(...args),
 }));
 
 import { createPurchaseInvoice, deletePurchaseInvoice } from './purchaseInvoiceService';
@@ -71,6 +76,8 @@ describe('deletePurchaseInvoice', () => {
       ],
     });
 
+    mockRecordAuditEvent.mockResolvedValue('audit-delete');
+
     await deletePurchaseInvoice('invoice-new');
 
     expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
@@ -82,6 +89,11 @@ describe('deletePurchaseInvoice', () => {
       purchasedAt: '2026-03-01',
     });
     expect(mockClearIngredientCostUpdate).not.toHaveBeenCalled();
+    expect(mockRecordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'delete',
+      entityType: 'purchase_invoice',
+      entityId: 'invoice-new',
+    }));
   });
 
   it('clears ingredient costing when the deleted invoice was the last purchase record', async () => {
@@ -118,6 +130,7 @@ describe('deletePurchaseInvoice', () => {
     expect(mockGetDocs).not.toHaveBeenCalled();
     expect(mockApplyIngredientCostUpdate).not.toHaveBeenCalled();
     expect(mockClearIngredientCostUpdate).not.toHaveBeenCalled();
+    expect(mockRecordAuditEvent).not.toHaveBeenCalled();
   });
 });
 
@@ -129,6 +142,7 @@ describe('createPurchaseInvoice', () => {
 
   it('stores only the selected supplier name on the invoice', async () => {
     mockAddDoc.mockResolvedValue({ id: 'invoice-created' });
+    mockRecordAuditEvent.mockResolvedValue('audit-create');
     mockGetDocs.mockResolvedValue({
       docs: [
         makeDoc('invoice-created', {
@@ -179,5 +193,10 @@ describe('createPurchaseInvoice', () => {
       unitCost: 0.05,
       purchasedAt: '2026-03-15',
     });
+    expect(mockRecordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'create',
+      entityType: 'purchase_invoice',
+      entityId: 'invoice-created',
+    }));
   });
 });

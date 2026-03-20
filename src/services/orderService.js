@@ -1,5 +1,6 @@
 import { doc, collection, addDoc, getDocs, query, orderBy, where, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { recordAuditEvent } from './auditService';
 
 const ORDERS_COLLECTION = 'orders';
 
@@ -171,6 +172,19 @@ export const saveOrder = async (orderData) => {
       orderNumber,
       updatedAt: new Date().toISOString(),
     });
+    await recordAuditEvent({
+      action: 'create',
+      entityType: 'order',
+      entityId: docRef.id,
+      entityLabel: orderNumber,
+      summary: `Creó la comanda ${orderNumber} por ${orderData.customerName || 'cliente general'} con total ${orderData.total || 0}.`,
+      details: {
+        status: orderData.status || 'Por Hacer',
+        itemCount: Array.isArray(orderData.items) ? orderData.items.length : 0,
+        total: Number(orderData.total) || 0,
+      },
+    });
+
     return {
       id: docRef.id,
       orderNumber,
@@ -207,6 +221,17 @@ export const updateOrderStatus = async (orderId, newStatus, paymentPayload = nul
     }
 
     await updateDoc(orderRef, payload);
+    await recordAuditEvent({
+      action: 'status_change',
+      entityType: 'order',
+      entityId: orderId,
+      entityLabel: orderId,
+      summary: `Actualizó la orden ${orderId} al estado ${newStatus}.`,
+      details: {
+        status: newStatus,
+        hasPaymentPayload: paymentPayload !== null,
+      },
+    });
     console.log(`[updateOrderStatus] Estado actualizado a "${newStatus}" para la orden ${orderId}`);
   } catch (error) {
     console.error('[updateOrderStatus] Error al actualizar el estado:', error);
@@ -217,6 +242,13 @@ export const deleteOrder = async (orderId) => {
   try {
     const orderRef = doc(db, ORDERS_COLLECTION, orderId);
     await deleteDoc(orderRef);
+    await recordAuditEvent({
+      action: 'delete',
+      entityType: 'order',
+      entityId: orderId,
+      entityLabel: orderId,
+      summary: `Eliminó la orden ${orderId}.`,
+    });
     console.log(`[deleteOrder] Orden ${orderId} eliminada correctamente`);
   } catch (error) {
     console.error('[deleteOrder] Error al eliminar la orden:', error);

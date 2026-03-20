@@ -35,6 +35,7 @@ import {
   PointOfSale,
   Insights,
   Storefront,
+  HistoryEdu,
 } from '@mui/icons-material';
 
 import OrderCreationPage from './pages/OrderCreationPage';
@@ -48,6 +49,7 @@ import IngredientsPage from './pages/IngredientsPage';
 import RecipesPage from './pages/RecipesPage';
 import PurchaseInvoicesPage from './pages/PurchaseInvoicesPage';
 import SuppliersPage from './pages/SuppliersPage';
+import AuditLogPage from './pages/AuditLogPage';
 import OfflineBanner from './components/Banners/OfflineBanner';
 
 import * as authService from './services/authService';
@@ -72,6 +74,7 @@ const menuSections = [
       { label: 'Historial de Ventas', icon: <ReceiptLong />, index: 2, roles: ['collaborator'] },
       { label: 'Dashboard', icon: <BarChart />, index: 4, roles: ['collaborator'] },
       { label: 'Registro de horas', icon: <WorkHistory />, index: 5, roles: ['collaborator'] },
+      { label: 'Auditoría', icon: <HistoryEdu />, index: 10, roles: ['collaborator'] },
     ],
   },
   {
@@ -109,6 +112,7 @@ const App = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const [currentRole, setCurrentRole] = useState(authService.getCurrentRole());
+  const [currentOperatorName, setCurrentOperatorName] = useState(authService.getCurrentOperatorName());
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [expandedSections, setExpandedSections] = useState(() =>
     menuSections.reduce((accumulator, section) => {
@@ -151,6 +155,7 @@ const App = () => {
       setIsAuthenticated(!!user);
       if (user) {
         setCurrentRole(authService.getCurrentRole());
+        setCurrentOperatorName(authService.getCurrentOperatorName());
       }
     });
 
@@ -184,6 +189,7 @@ const App = () => {
     await authService.logout();
     setIsAuthenticated(false);
     setCurrentRole('collaborator');
+    setCurrentOperatorName('');
   }, []);
 
   const handleViewChange = (nextViewIndex) => {
@@ -210,6 +216,7 @@ const App = () => {
       case 7: return <RecipesPage />;
       case 8: return <SuppliersPage />;
       case 9: return <PurchaseInvoicesPage />;
+      case 10: return <AuditLogPage />;
       default: return <Typography>Vista no encontrada.</Typography>;
     }
   };
@@ -220,6 +227,7 @@ const App = () => {
         <OfflineBanner isOnline={isOnline} />
         <LoginPage onLoginSuccess={() => {
           setCurrentRole(authService.getCurrentRole());
+          setCurrentOperatorName(authService.getCurrentOperatorName());
           setIsAuthenticated(true);
         }} />
       </Box>
@@ -244,6 +252,9 @@ const App = () => {
             </Box>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
+            {currentOperatorName && (
+              <Chip size="small" label={`Usuario: ${currentOperatorName}`} sx={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'white' }} />
+            )}
             <Chip size="small" label={`Rol: ${getRoleLabel(currentRole)}`} sx={{ backgroundColor: 'rgba(255,255,255,0.18)', color: 'white' }} />
             <IconButton color="inherit" onClick={handleLogout}>
               <LogoutIcon />
@@ -269,7 +280,10 @@ const App = () => {
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
               Organiza el trabajo por áreas para encontrar cada módulo más rápido.
             </Typography>
-            <Chip size="small" label={`Acceso actual: ${getRoleLabel(currentRole)}`} sx={{ mt: 1.5 }} />
+            <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+              {currentOperatorName && <Chip size="small" label={`Usuario: ${currentOperatorName}`} />}
+              <Chip size="small" label={`Acceso actual: ${getRoleLabel(currentRole)}`} />
+            </Stack>
           </Box>
 
           <List sx={{ px: 1.5, py: 1.5 }}>

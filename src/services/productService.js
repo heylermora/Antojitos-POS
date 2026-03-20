@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { buildSlug } from '../utils/taxCatalog';
+import { recordAuditEvent } from './auditService';
 
 const PRODUCTS_COLLECTION = 'products';
 const PRODUCT_CATEGORIES_COLLECTION = 'productCategories';
@@ -95,6 +96,14 @@ export const createProductCategory = async (name) => {
     { merge: true }
   );
 
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'product_category',
+    entityId: categoryId,
+    entityLabel: trimmedName,
+    summary: `Creó la categoría de productos ${trimmedName}.`,
+  });
+
   return categoryId;
 };
 
@@ -115,6 +124,14 @@ export const createProduct = async (product) => {
     : doc(collection(db, PRODUCTS_COLLECTION));
 
   await setDoc(docRef, payload, { merge: true });
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'product',
+    entityId: docRef.id,
+    entityLabel: payload.name || docRef.id,
+    summary: `Creó el producto ${payload.name || docRef.id}.`,
+    details: { categoryName: payload.categoryName, price: payload.price },
+  });
   return docRef.id;
 };
 
@@ -132,9 +149,24 @@ export const updateProduct = async (id, updates) => {
     active: updates.active !== false,
     updatedAt: serverTimestamp(),
   });
+  await recordAuditEvent({
+    action: 'update',
+    entityType: 'product',
+    entityId: id,
+    entityLabel: updates.name || id,
+    summary: `Actualizó el producto ${updates.name || id}.`,
+    details: { categoryName: updates.categoryName || '', price: Number(updates.price) || 0 },
+  });
 };
 
 export const deleteProduct = async (id) => {
   if (!id) return;
   await deleteDoc(doc(db, PRODUCTS_COLLECTION, id));
+  await recordAuditEvent({
+    action: 'delete',
+    entityType: 'product',
+    entityId: id,
+    entityLabel: id,
+    summary: `Eliminó el producto ${id}.`,
+  });
 };

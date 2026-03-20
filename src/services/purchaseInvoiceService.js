@@ -1,6 +1,7 @@
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { applyIngredientCostUpdate, clearIngredientCostUpdate } from './ingredientService';
+import { recordAuditEvent } from './auditService';
 
 const PURCHASE_INVOICES_COLLECTION = 'purchaseInvoices';
 
@@ -109,6 +110,14 @@ export const createPurchaseInvoice = async (invoice) => {
   const docRef = await addDoc(collection(db, PURCHASE_INVOICES_COLLECTION), payload);
   const affectedIngredientIds = [...new Set(cleanLines.map((line) => line.ingredientId).filter(Boolean))];
   await recomputeIngredientCosts(affectedIngredientIds);
+  await recordAuditEvent({
+    action: 'create',
+    entityType: 'purchase_invoice',
+    entityId: docRef.id,
+    entityLabel: payload.invoiceNumber || docRef.id,
+    summary: `Registró la factura ${payload.invoiceNumber || docRef.id} del proveedor ${payload.supplierName || 'sin proveedor'}.`,
+    details: { supplierName: payload.supplierName, total: payload.total, lineCount: cleanLines.length },
+  });
 
   return docRef.id;
 };
@@ -126,4 +135,12 @@ export const deletePurchaseInvoice = async (id) => {
 
   await deleteDoc(invoiceRef);
   await recomputeIngredientCosts(affectedIngredientIds);
+  await recordAuditEvent({
+    action: 'delete',
+    entityType: 'purchase_invoice',
+    entityId: id,
+    entityLabel: invoice.invoiceNumber || id,
+    summary: `Eliminó la factura ${invoice.invoiceNumber || id}.`,
+    details: { supplierName: invoice.supplierName || '', total: invoice.total || 0 },
+  });
 };
